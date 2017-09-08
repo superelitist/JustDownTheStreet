@@ -5,12 +5,13 @@
 // The readme in the downloaded zip folder explains how to use this, and how to import into GTA5. Enjoy!
 //
 using GTA;
+using GTA.Math;
 using GTA.Native;
+using Newtonsoft.Json;
 using System;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
-using Newtonsoft.Json;
 
 enum Character { Michael, Franklin, Trevor, None = 99 }
 
@@ -91,12 +92,14 @@ public static class Logger
 
 public class JustDownTheStreet : Script      // This is the beginning of the script, public class
 {
-    private Ped playerPed = Game.Player.Character;  // Used for coding later on
-    private Player player = Game.Player;            // Used for coding later on as well
+    private Player player = Game.Player;
+    private Ped playerPed = Game.Player.Character;
+    private Ped playerPedId = Function.Call<Ped>(Hash.PLAYER_PED_ID);
     private bool firstTick = true;
-    private bool playerSwitchInProgress = false;
+    private bool PlayerHasLostControl = false;
     private Vehicle personalVehicle;
     private Blip personalVehicleBlip;
+    private String JsonFolder = AppDomain.CurrentDomain.BaseDirectory + "/jdts/";
 
     public JustDownTheStreet()
     {
@@ -107,7 +110,9 @@ public class JustDownTheStreet : Script      // This is the beginning of the scr
 
     private void Init(object sender, EventArgs e)
     {
+        Logger.Log("--------------------------------");
         Logger.Log("Script initializing");
+        DirectoryInfo di = Directory.CreateDirectory(JsonFolder);
 
         while (!player.CanControlCharacter) // check if player has control, probably indicating that the game has finished loading
         {
@@ -120,35 +125,49 @@ public class JustDownTheStreet : Script      // This is the beginning of the scr
     private void OnTick(object sender, EventArgs e)     // Here, stuff are run every frame of the gameplay
     {
         // This is where you add code
-        
+        //Logger.Log("Tick!");
         if (firstTick == true) // every tick, check if this is the first tick. If it is, run Init()
         {
             Init(sender, e);
         }
-        if (!playerSwitchInProgress) // is the player not already switching?
+        if (!player.CanControlCharacter)
         {
-            if (!IsPlayerInControl()) // has the player started switching?
+            //Logger.Log("!player.CanControlCharacter");
+            // Maybe I could replace my other function?!
+        }
+        if (!PlayerHasLostControl) // is the player not already switching?
+        {
+            if (!IsPlayerUnderArrestDeadOrLoading()) // has the player started switching?
             {
-                playerSwitchInProgress = true;
+                Logger.Log("Player has lost control");
+                PlayerHasLostControl = true;
                 CleanupPersonalVehicle();
                 return;
             }
         }
-        if (playerSwitchInProgress) // has the player begun switching?
+        if (PlayerHasLostControl) // has the player begun switching?
         {
-            if (IsPlayerInControl()) // has the player stopped switching?
+            if (IsPlayerUnderArrestDeadOrLoading()) // has the player stopped switching?
             {
-                playerSwitchInProgress = false;
+                Logger.Log("Player has regained control");
+                PlayerHasLostControl = false;
+                player = Game.Player;
+                playerPed = Game.Player.Character;
                 CreatePersonalVehicle();
+                return;
             }
         }
-        Wait(250); // try not to stall the game?
+        //Wait(500); // try not to stall the game?
     }
 
-    private bool IsPlayerInControl()
+    private bool IsPlayerUnderArrestDeadOrLoading() // not always reliable, but... enough?
     {
-        if (Function.Call<bool>(Hash.IS_PLAYER_SWITCH_IN_PROGRESS) || !playerPed.IsAlive || Function.Call<bool>(Hash.IS_PED_BEING_ARRESTED) || Game.IsLoading)
+        if (Function.Call<bool>(Hash.IS_PLAYER_SWITCH_IN_PROGRESS) ||
+            Function.Call<bool>(Hash.IS_ENTITY_DEAD, Function.Call<Ped>(Hash.PLAYER_PED_ID)) ||
+            Function.Call<bool>(Hash.IS_PLAYER_BEING_ARRESTED, player) ||
+            Game.IsLoading)
         {
+            //Logger.Log("NOT IN CONTROL");
             return false;
         }
         return true;
@@ -156,21 +175,70 @@ public class JustDownTheStreet : Script      // This is the beginning of the scr
 
     private void CreatePersonalVehicle()
     {
-        personalVehicle = World.CreateVehicle(VehicleHash.Adder, player.Character.Position + player.Character.ForwardVector * 3.0f, Game.Player.Character.Heading + 90);
-        personalVehicleBlip = personalVehicle.AddBlip();
-        personalVehicleBlip.Sprite = BlipSprite.PersonalVehicleCar;
-        personalVehicle.CanTiresBurst = false;
-        personalVehicle.CustomPrimaryColor = Color.FromArgb(38, 38, 38);
-        personalVehicle.CustomSecondaryColor = Color.DarkOrange;
-        personalVehicle.PlaceOnGround();
-        personalVehicle.NumberPlate = player.Name;
-        personalVehicle.GetMod(VehicleMod.Aerials);
+        Logger.Log("CreatePersonalVehicle()");
+        Wait(500); // maybe give them time to spawn?
+        Vehicle[] allVehicles = World.GetAllVehicles();
+        //Array.ForEach<byte>(byteArray, b => b = 0xFF);
+        for (int i = 0; i < allVehicles.Length; i++)
+        {
+            Vehicle thisVehicle = allVehicles[i];
+            Logger.Log("thisVehicle distance: " + World.GetDistance(thisVehicle.Position, playerPed.Position).ToString());
+            Logger.Log("thisVehicle IsStopped: " + thisVehicle.IsStopped.ToString());
+            Logger.Log("thisVehicle Driver: " + thisVehicle.Driver.Model.ToString());
+            if (World.GetDistance(thisVehicle.Position, playerPed.Position) > 50 &
+                World.GetDistance(thisVehicle.Position, playerPed.Position) < 150 &
+                thisVehicle.IsStopped &
+                thisVehicle.Driver.Model == 0x0) // lazy but should probably do OK for now.
+            {
+                Logger.Log("Found a parked car! Replacing now...");
+                Vector3 thisVehiclePosition = thisVehicle.Position;
+                float thisVehicleHeading = thisVehicle.Heading;
+                thisVehicle.Delete();
+                personalVehicle = World.CreateVehicle(VehicleHash.Adder, thisVehiclePosition, thisVehicleHeading);
+                personalVehicleBlip = personalVehicle.AddBlip();
+                personalVehicleBlip.Sprite = BlipSprite.PersonalVehicleCar;
+                personalVehicle.CanTiresBurst = false;
+                personalVehicle.CustomPrimaryColor = Color.FromArgb(128, 64, 64);
+                personalVehicle.CustomSecondaryColor = Color.Cyan;
+                personalVehicle.PlaceOnGround();
+                personalVehicle.NumberPlate = player.Name;
+                return;
+            }
+        }
+        Logger.Log("... couldn't find a suitable car...");
     }
+
+    //private void CreatePersonalVehicle()
+    //{
+    //    Logger.Log("CreatePersonalVehicle()");
+    //    Wait(500); // maybe give them time to spawn?
+    //    //Logger.Log("player: " + CurrentPlayerCharacter());
+    //    //Logger.Log("playerPed.Position: " + playerPed.Position.ToString());
+    //    Vector3 position = World.GetNextPositionOnStreet(playerPed.Position, true);
+    //    float thisVehicleHeading = playerPed.Heading + 90;
+    //    personalVehicle = World.CreateVehicle(VehicleHash.Adder, position, thisVehicleHeading);
+    //    personalVehicleBlip = personalVehicle.AddBlip();
+    //    personalVehicleBlip.Sprite = BlipSprite.PersonalVehicleCar;
+    //    personalVehicle.CanTiresBurst = false;
+    //    personalVehicle.CustomPrimaryColor = Color.FromArgb(128, 64, 64);
+    //    personalVehicle.CustomSecondaryColor = Color.Cyan;
+    //    personalVehicle.PlaceOnGround();
+    //    personalVehicle.NumberPlate = player.Name;
+    //}
 
     private void CleanupPersonalVehicle()
     {
-        personalVehicleBlip.Remove();
-        personalVehicle.Delete();
+        Wait(500); // or the player ped will be standing in the middle of the street.
+        Logger.Log("CleanupPersonalVehicle()");
+        if (personalVehicleBlip != null)
+        {
+            personalVehicleBlip.Remove();
+        }
+        if (personalVehicle != null)
+        {
+            personalVehicle.Delete();
+        }
+        return;
     }
 
     private void OnKeyDown(object sender, KeyEventArgs e)       // Code inside this is what happens when a key gets pushed down or held down
@@ -187,72 +255,64 @@ public class JustDownTheStreet : Script      // This is the beginning of the scr
     {
         if (e.KeyCode == Keys.X)
         {
-            if (player.IsTargettingAnything)
+            //Logger.Log("X key pressed...");
+            Vehicle vehicle = playerPed.CurrentVehicle; // get the vehicle our player is in!
+            APersonalVehicle aPersonalVehicle = new APersonalVehicle((VehicleHash)vehicle.Model.Hash, vehicle.NumberPlate, CurrentPlayerCharacter())
             {
-                Entity entity = player.GetTargetedEntity();
-                if (entity.Model.IsVehicle)
-                {
-                    UI.Notify("vehicle targeted.");
-                    Vehicle vehicle = World.GetClosestVehicle(entity.Position,10); // this is an absurd method to get the vehicle.
-                    APersonalVehicle aPersonalVehicle = new APersonalVehicle((VehicleHash)vehicle.Model.Hash, vehicle.NumberPlate, CurrentPlayerCharacter())
-                    {
-                        Spoilers = vehicle.GetMod(VehicleMod.Spoilers),
-                        FrontBumper = vehicle.GetMod(VehicleMod.FrontBumper),
-                        RearBumper = vehicle.GetMod(VehicleMod.RearBumper),
-                        SideSkirt = vehicle.GetMod(VehicleMod.SideSkirt),
-                        Exhaust = vehicle.GetMod(VehicleMod.Exhaust),
-                        Frame = vehicle.GetMod(VehicleMod.Frame),
-                        Grille = vehicle.GetMod(VehicleMod.Grille),
-                        Hood = vehicle.GetMod(VehicleMod.Hood),
-                        Fender = vehicle.GetMod(VehicleMod.Fender),
-                        RightFender = vehicle.GetMod(VehicleMod.RightFender),
-                        Roof = vehicle.GetMod(VehicleMod.Roof),
-                        Engine = vehicle.GetMod(VehicleMod.Engine),
-                        Brakes = vehicle.GetMod(VehicleMod.Brakes),
-                        Transmission = vehicle.GetMod(VehicleMod.Transmission),
-                        Horns = vehicle.GetMod(VehicleMod.Horns),
-                        Suspension = vehicle.GetMod(VehicleMod.Suspension),
-                        Armor = vehicle.GetMod(VehicleMod.Armor),
-                        FrontWheel = vehicle.GetMod(VehicleMod.FrontWheels),
-                        RearWheel = vehicle.GetMod(VehicleMod.BackWheels),
-                        PlateHolder = vehicle.GetMod(VehicleMod.PlateHolder),
-                        VanityPlates = vehicle.GetMod(VehicleMod.VanityPlates),
-                        TrimDesign = vehicle.GetMod(VehicleMod.TrimDesign),
-                        Ornaments = vehicle.GetMod(VehicleMod.Ornaments),
-                        Dashboard = vehicle.GetMod(VehicleMod.Dashboard),
-                        DialDesign = vehicle.GetMod(VehicleMod.DialDesign),
-                        DoorSpeakers = vehicle.GetMod(VehicleMod.DoorSpeakers),
-                        Seats = vehicle.GetMod(VehicleMod.Seats),
-                        SteeringWheels = vehicle.GetMod(VehicleMod.SteeringWheels),
-                        ColumnShifterLevers = vehicle.GetMod(VehicleMod.ColumnShifterLevers),
-                        Plaques = vehicle.GetMod(VehicleMod.Plaques),
-                        Speakers = vehicle.GetMod(VehicleMod.Speakers),
-                        Trunk = vehicle.GetMod(VehicleMod.Trunk),
-                        Hydraulics = vehicle.GetMod(VehicleMod.Hydraulics),
-                        EngineBlock = vehicle.GetMod(VehicleMod.EngineBlock),
-                        AirFilter = vehicle.GetMod(VehicleMod.AirFilter),
-                        Struts = vehicle.GetMod(VehicleMod.Struts),
-                        ArchCover = vehicle.GetMod(VehicleMod.ArchCover),
-                        Aerials = vehicle.GetMod(VehicleMod.Aerials),
-                        Trim = vehicle.GetMod(VehicleMod.Trim),
-                        Tank = vehicle.GetMod(VehicleMod.Tank),
-                        Windows = vehicle.GetMod(VehicleMod.Windows),
-                        Livery = vehicle.GetMod(VehicleMod.Livery),
-                        //Character = playerPed.GetHashCode()
-                        Character = CurrentPlayerCharacter()
-                    };
-                    File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + aPersonalVehicle.Plate + ".json", JsonConvert.SerializeObject(aPersonalVehicle));
-                }
-                UI.Notify("non-vehicle entity targeted.");
-            } else
-            {
-                UI.Notify("no entity found!");
-            }
+                Spoilers = vehicle.GetMod(VehicleMod.Spoilers),
+                FrontBumper = vehicle.GetMod(VehicleMod.FrontBumper),
+                RearBumper = vehicle.GetMod(VehicleMod.RearBumper),
+                SideSkirt = vehicle.GetMod(VehicleMod.SideSkirt),
+                Exhaust = vehicle.GetMod(VehicleMod.Exhaust),
+                Frame = vehicle.GetMod(VehicleMod.Frame),
+                Grille = vehicle.GetMod(VehicleMod.Grille),
+                Hood = vehicle.GetMod(VehicleMod.Hood),
+                Fender = vehicle.GetMod(VehicleMod.Fender),
+                RightFender = vehicle.GetMod(VehicleMod.RightFender),
+                Roof = vehicle.GetMod(VehicleMod.Roof),
+                Engine = vehicle.GetMod(VehicleMod.Engine),
+                Brakes = vehicle.GetMod(VehicleMod.Brakes),
+                Transmission = vehicle.GetMod(VehicleMod.Transmission),
+                Horns = vehicle.GetMod(VehicleMod.Horns),
+                Suspension = vehicle.GetMod(VehicleMod.Suspension),
+                Armor = vehicle.GetMod(VehicleMod.Armor),
+                FrontWheel = vehicle.GetMod(VehicleMod.FrontWheels),
+                RearWheel = vehicle.GetMod(VehicleMod.BackWheels),
+                PlateHolder = vehicle.GetMod(VehicleMod.PlateHolder),
+                VanityPlates = vehicle.GetMod(VehicleMod.VanityPlates),
+                TrimDesign = vehicle.GetMod(VehicleMod.TrimDesign),
+                Ornaments = vehicle.GetMod(VehicleMod.Ornaments),
+                Dashboard = vehicle.GetMod(VehicleMod.Dashboard),
+                DialDesign = vehicle.GetMod(VehicleMod.DialDesign),
+                DoorSpeakers = vehicle.GetMod(VehicleMod.DoorSpeakers),
+                Seats = vehicle.GetMod(VehicleMod.Seats),
+                SteeringWheels = vehicle.GetMod(VehicleMod.SteeringWheels),
+                ColumnShifterLevers = vehicle.GetMod(VehicleMod.ColumnShifterLevers),
+                Plaques = vehicle.GetMod(VehicleMod.Plaques),
+                Speakers = vehicle.GetMod(VehicleMod.Speakers),
+                Trunk = vehicle.GetMod(VehicleMod.Trunk),
+                Hydraulics = vehicle.GetMod(VehicleMod.Hydraulics),
+                EngineBlock = vehicle.GetMod(VehicleMod.EngineBlock),
+                AirFilter = vehicle.GetMod(VehicleMod.AirFilter),
+                Struts = vehicle.GetMod(VehicleMod.Struts),
+                ArchCover = vehicle.GetMod(VehicleMod.ArchCover),
+                Aerials = vehicle.GetMod(VehicleMod.Aerials),
+                Trim = vehicle.GetMod(VehicleMod.Trim),
+                Tank = vehicle.GetMod(VehicleMod.Tank),
+                Windows = vehicle.GetMod(VehicleMod.Windows),
+                Livery = vehicle.GetMod(VehicleMod.Livery),
+                //Character = playerPed.GetHashCode()
+                Character = CurrentPlayerCharacter()
+            };
+            Logger.Log(JsonFolder + aPersonalVehicle.Plate + ".json" + ")");
+            File.WriteAllText(JsonFolder + aPersonalVehicle.Plate + ".json", JsonConvert.SerializeObject(aPersonalVehicle));
+            //File.WriteAllText("/scripts/jdts/" + aPersonalVehicle.Plate + ".json", JsonConvert.SerializeObject(aPersonalVehicle));
         }
     }
 
     private Character CurrentPlayerCharacter()
     {
+        Logger.Log("CurrentPlayerCharacter()");
         Model modelZero = new Model("player_zero");
         int hashZero = modelZero.Hash;
         Model modelOne = new Model("player_one");
