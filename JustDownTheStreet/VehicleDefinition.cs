@@ -7,7 +7,7 @@
 
 namespace JustDownTheStreet
 {
-    class VehicleDefinition
+    internal class VehicleDefinition
     {
         public string VehicleName { get; set; }
         public string Plate { get; set; }

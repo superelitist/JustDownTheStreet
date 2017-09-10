@@ -3,7 +3,7 @@ using GTA;
 
 namespace JustDownTheStreet
 {
-    class Colors
+    internal class Colors
     {
         public VehicleColor Primary { get; set; }
         public VehicleColor Secondary { get; set; }

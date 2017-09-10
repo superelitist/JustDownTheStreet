@@ -16,13 +16,12 @@ using GTA;
 using GTA.Math;
 using GTA.Native;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 
 [assembly: CLSCompliant(false)]
 
 namespace JustDownTheStreet
 {
-    public class JustDownTheStreet : Script      // This is the beginning of the script, public class
+    public class Main : Script      // This is the beginning of the script, public class
     {
         private readonly Random _rng = new Random();
         private readonly MD5 _hash = new MD5Cng();
@@ -31,11 +30,11 @@ namespace JustDownTheStreet
         private Vehicle _personalVehicle;
         private Blip _personalVehicleBlip;
         private readonly string _jsonFolder = AppDomain.CurrentDomain.BaseDirectory + "/jdts/";
-        List<VehicleDefinition> _personalVehiclesMichael = new List<VehicleDefinition>();
-        List<VehicleDefinition> _personalVehiclesFranklin = new List<VehicleDefinition>();
-        List<VehicleDefinition> _personalVehiclesTrevor = new List<VehicleDefinition>();
+        private List<VehicleDefinition> _personalVehiclesMichael = new List<VehicleDefinition>();
+        private List<VehicleDefinition> _personalVehiclesFranklin = new List<VehicleDefinition>();
+        private List<VehicleDefinition> _personalVehiclesTrevor = new List<VehicleDefinition>();
 
-        public JustDownTheStreet()
+        public Main()
         {
             Tick += OnTick;         //
             KeyDown += OnKeyDown;   // These three are defined below.
@@ -57,7 +56,7 @@ namespace JustDownTheStreet
         private static Vector4 FindASpawnPoint()
         {
             //Logger.Log("FindASpawnPoint()");
-            Wait(500); // maybe give them time to spawn?
+            Wait(666); // maybe give them time to spawn?
             Vehicle[] allVehicles = World.GetAllVehicles();
             Logger.Log("FindASpawnPoint(): looking at " + allVehicles.Length + " possible vehicles.");
             Vector3 playerPosition = Game.Player.Character.Position;
@@ -81,64 +80,75 @@ namespace JustDownTheStreet
                     Vector3 thisVehiclePosition = thisVehicle.Position;
                     float thisVehicleHeading = thisVehicle.Heading;
                     thisVehicle.Delete();
+                    Logger.Log("FindASpawnPoint(): found a spawn point:");
                     return new Vector4(thisVehiclePosition, thisVehicleHeading);
                 }
             }
-            Logger.Log("... couldn't find a suitable car...");
-            throw new Exception();
+            Logger.Log("FindASpawnPoint(): couldn't find a suitable spawn point.");
+            throw new InvalidOperationException("FindASpawnPoint(): couldn't find a suitable spawn point.");
         }
 
-        private VehicleDefinition SelectAPersonalVehicle(string currentCharacterName)
+        private VehicleDefinition SelectAPersonalVehicle(IReadOnlyList<VehicleDefinition> vehicleList)
         {
-            VehicleDefinition selectedVehicleDefinition = new VehicleDefinition("", "", "");
-            switch (currentCharacterName)
+            if (vehicleList.Count == 0)
             {
-                case "Michael":
-                    {
-                        if (_personalVehiclesMichael.Count == 0)
-                        {
-                            Logger.Log("SelectAPersonalVehicle(): Michael's list is empty! I guess we can't spawn him a vehicle...");
-                            return null;
-                        }
-                        int randomNumber = _rng.Next(_personalVehiclesMichael.Count);
-                        selectedVehicleDefinition = _personalVehiclesMichael[randomNumber];
-                        Logger.Log("SelectAPersonalVehicle(): Selecting a vehicle from Michael's list: " + selectedVehicleDefinition.VehicleName + " with plate " + selectedVehicleDefinition.Plate);
-                    }
-                    break;
-                case "Franklin":
-                    {
-                        if (_personalVehiclesFranklin.Count == 0)
-                        {
-                            Logger.Log("SelectAPersonalVehicle(): Franklin's list is empty! I guess we can't spawn him a vehicle...");
-                            return null;
-                        }
-                        int randomNumber = _rng.Next(_personalVehiclesFranklin.Count);
-                        selectedVehicleDefinition = _personalVehiclesFranklin[randomNumber];
-                        Logger.Log("SelectAPersonalVehicle(): Selecting a vehicle from Franklin's list: " + selectedVehicleDefinition.VehicleName + " => " + selectedVehicleDefinition.Plate);
-                    }
-                    break;
-                case "Trevor":
-                    {
-                        if (_personalVehiclesTrevor.Count == 0)
-                        {
-                            Logger.Log("SelectAPersonalVehicle(): Trevor's list is empty! I guess we can't spawn him a vehicle...");
-                            return null;
-                        }
-                        int randomNumber = _rng.Next(_personalVehiclesTrevor.Count);
-                        selectedVehicleDefinition = _personalVehiclesTrevor[randomNumber];
-                        Logger.Log("SelectAPersonalVehicle(): Selecting a vehicle from Trevor's list: " + selectedVehicleDefinition.VehicleName + " => " + selectedVehicleDefinition.Plate);
-                    }
-                    break;
-                default:
-                    Logger.Log("SelectAPersonalVehicle(): Something went horribly wrong, I can't match this character to a name!...");
-                    break;
+                Logger.Log("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
+                throw new InvalidOperationException("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
             }
-            if (!String.IsNullOrEmpty(selectedVehicleDefinition.VehicleName)) return selectedVehicleDefinition;
-            Logger.Log("SelectAPersonalVehicle(): selectedVehicleDefinition was not assigned!");
-            return null;
+            int randomNumber = _rng.Next(vehicleList.Count);
+            VehicleDefinition selectedVehicleDefinition = vehicleList[randomNumber];
+            return selectedVehicleDefinition;
         }
 
-        private void ConfigurePersonalVehicle(Vehicle vehicle, VehicleDefinition vehicleDefinition)
+        private void GeneratePersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
+        {
+            VehicleDefinition vehicleDefinition;
+            Vector4 aSpawnPoint;
+            try
+            {
+                aSpawnPoint = FindASpawnPoint();
+            }
+            catch (InvalidOperationException)
+            {
+                return;
+            }
+            try
+            {
+                switch (((PedHash)Game.Player.Character.Model.Hash).ToString())
+                {
+                    case "Michael":
+                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesMichael);
+                        break;
+                    case "Franklin":
+                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesFranklin);
+                        break;
+                    case "Trevor":
+                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesTrevor);
+                        break;
+                    default:
+                        Logger.Log("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
+                        throw new InvalidOperationException("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                return;
+            }
+            Vector3 createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates =
+                new Vector3(aSpawnPoint.X, aSpawnPoint.Y, aSpawnPoint.Z);
+            vehicle = World.CreateVehicle(vehicleDefinition.VehicleName,
+                createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates, aSpawnPoint.H);
+            vehicle.PlaceOnGround();
+            ConfigurePersonalVehicle(vehicle, vehicleDefinition);
+            Logger.Log("GeneratePersonalVehicleAndBlip(): placed a " + vehicle.PrimaryColor + " " + (VehicleHash)vehicle.Model.Hash + " at (" +
+                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.X, 3) + ", " +
+                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Y, 3) + ", " +
+                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Z, 3) + ")");
+            blip = vehicle.AddBlip();
+            blip.Sprite = BlipSprite.PersonalVehicleCar;
+        }
+
+        private static void ConfigurePersonalVehicle(Vehicle vehicle, VehicleDefinition vehicleDefinition)
         {
             vehicle.NumberPlate = vehicleDefinition.Plate;
             vehicle.InstallModKit();
@@ -190,9 +200,9 @@ namespace JustDownTheStreet
             vehicle.CanTiresBurst = vehicleDefinition.CanTiresBurst;
             // colors
             // for now I'm skipping the customs, I'm not actually sure if I can even set those...
-            vehicle.PrimaryColor = (VehicleColor) vehicleDefinition.Colors.Primary;
-            vehicle.SecondaryColor = (VehicleColor) vehicleDefinition.Colors.Secondary;
-            vehicle.RimColor = (VehicleColor) vehicleDefinition.Colors.Rim;
+            vehicle.PrimaryColor = vehicleDefinition.Colors.Primary;
+            vehicle.SecondaryColor = vehicleDefinition.Colors.Secondary;
+            vehicle.RimColor = vehicleDefinition.Colors.Rim;
             //vehicle.NeonLightsColor = Color.FromArgb(0,vehicleDefinition.Colors.NeonR, vehicleDefinition.Colors.NeonG, vehicleDefinition.Colors.NeonB);
             vehicle.NeonLightsColor = vehicleDefinition.Colors.Neon;
             //vehicle.TireSmokeColor = Color.FromArgb(0, vehicleDefinition.Colors.TireSmokeR, vehicleDefinition.Colors.TireSmokeG, vehicleDefinition.Colors.TireSmokeB);
@@ -201,10 +211,10 @@ namespace JustDownTheStreet
             vehicle.DashboardColor = (VehicleColor) vehicleDefinition.Dashboard;
         }
 
-        private void CleanupPersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
+        private static void CleanupPersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
         {
-            Wait(500); // or the player ped will be standing in the middle of the street.
-            Logger.Log("CleanupPersonalVehicleAndBlip()");
+            Wait(666); // or the player ped will be standing in the middle of the street.
+            Logger.Log("CleanupPersonalVehicleAndBlip(): removing vehicle and blip.");
             if (blip != null)
             {
                 blip.Remove();
@@ -216,13 +226,13 @@ namespace JustDownTheStreet
             }
         }
 
-        static string GetHash(MD5 hash, string input) // from MSDN, but I think modified slightly
+        private static string GetHash(MD5 hash, string input) // from MSDN, but I think modified slightly
         {
             byte[] data = hash.ComputeHash(Encoding.UTF8.GetBytes(input)); // Convert the input string to a byte array and compute the hash.
             StringBuilder sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
             foreach (byte t in data) // Loop through each byte of the hashed data and format each one as a hexadecimal string.
             {
-                sBuilder.Append(t.ToString("x2"));
+                sBuilder.Append(t.ToString("x2", CultureInfo.InvariantCulture));
             }
             return sBuilder.ToString(); // Return the hexadecimal string.
         }
@@ -302,7 +312,7 @@ namespace JustDownTheStreet
             File.WriteAllText(fullPath, jsonString);
         }
 
-        private List<VehicleDefinition> GetAllPersonalVehiclesFromJson(string jsonfolder, string name)
+        private static List<VehicleDefinition> GetAllPersonalVehiclesFromJson(string jsonfolder, string name)
         {
             List<VehicleDefinition> list = new List<VehicleDefinition>();
             string[] jsonFiles = Directory.GetFiles(jsonfolder, "*.json");
@@ -325,11 +335,9 @@ namespace JustDownTheStreet
             Logger.Log("Init(): Script initializing");
             //DirectoryInfo di =
             Directory.CreateDirectory(_jsonFolder);
-
             _personalVehiclesMichael = GetAllPersonalVehiclesFromJson(_jsonFolder, "Michael");
             _personalVehiclesFranklin = GetAllPersonalVehiclesFromJson(_jsonFolder, "Franklin");
             _personalVehiclesTrevor = GetAllPersonalVehiclesFromJson(_jsonFolder, "Trevor");
-
             while (!Game.Player.CanControlCharacter) // check if player has control, probably indicating that the game has finished loading
             {
                 Wait(0);
@@ -339,13 +347,14 @@ namespace JustDownTheStreet
 
         private void OnTick(object sender, EventArgs e)
         {
+            
             if (_firstTick) // every tick, check if this is the first tick. If it is, run Init()
             {
                 Init();
             }
             if (_playerIsInControl && IsPlayerSwitchingUnderArrestDeadOrLoading()) // is the player switching but wasn't already?
             {
-                Logger.Log("OnTick(): Player has lost control, destroying personal vehicle.");
+                Logger.Log("OnTick(): Player has lost control.");
                 _playerIsInControl = false;
                 CleanupPersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
                 return;
@@ -356,28 +365,7 @@ namespace JustDownTheStreet
                 _playerIsInControl = true;
                 if (_personalVehicle != null) return;
                 Logger.Log("OnTick(): Player does not already have a personal vehicle.");
-                try
-                {
-                    Vector4 aSpawnPoint = FindASpawnPoint();
-                    Logger.Log("OnTick(): FindASpawnPoint() found a spawn point.");
-                    VehicleDefinition vehicleDefinition = SelectAPersonalVehicle(((PedHash)Game.Player.Character.Model.Hash).ToString());
-                    Vector3 createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates = new Vector3(aSpawnPoint.X, aSpawnPoint.Y, aSpawnPoint.Z);
-                    _personalVehicle = World.CreateVehicle(vehicleDefinition.VehicleName, 
-                        createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates, aSpawnPoint.H);
-                    _personalVehicle.PlaceOnGround();
-                    ConfigurePersonalVehicle(_personalVehicle, vehicleDefinition);
-                    Logger.Log("OnTick(): World.CreateVehicle(): placed a " + _personalVehicle.PrimaryColor + " " + (VehicleHash)_personalVehicle.Model.Hash + " at (" + 
-                        Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.X,3) + ", " +
-                        Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Y, 3) + ", " +
-                        Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Z, 3) + ")");
-                    _personalVehicleBlip = _personalVehicle.AddBlip();
-                    _personalVehicleBlip.Sprite = BlipSprite.PersonalVehicleCar;
-                }
-                catch (Exception)
-                {
-                    Logger.Log("OnTick(): FindASpawnPoint() returned null, waiting...");
-                    Wait(1000);
-                }
+                GeneratePersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
             }
         }
 
