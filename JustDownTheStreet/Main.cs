@@ -23,8 +23,8 @@ namespace JustDownTheStreet
 {
     public class Main : Script      // This is the beginning of the script, public class
     {
-        private readonly Random _rng = new Random();
-        private readonly MD5 _hash = new MD5Cng();
+        private static readonly Random Rng = new Random();
+        private static readonly MD5 Md5Hash = new MD5Cng();
         private bool _firstTick = true;
         private bool _playerIsInControl;
         private Vehicle _personalVehicle;
@@ -41,6 +41,17 @@ namespace JustDownTheStreet
             KeyUp += OnKeyUp;       //
         }
 
+        private static string GetHash(MD5 hash, string input) // from MSDN, but I think modified slightly
+        {
+            byte[] data = hash.ComputeHash(Encoding.UTF8.GetBytes(input)); // Convert the input string to a byte array and compute the hash.
+            StringBuilder sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
+            foreach (byte t in data) // Loop through each byte of the hashed data and format each one as a hexadecimal string.
+            {
+                sBuilder.Append(t.ToString("x2", CultureInfo.InvariantCulture));
+            }
+            return sBuilder.ToString(); // Return the hexadecimal string.
+        }
+
         private static bool IsPlayerSwitchingUnderArrestDeadOrLoading() // not always reliable, but... enough?
         {
             if (Function.Call<bool>(Hash.IS_PLAYER_SWITCH_IN_PROGRESS) ||
@@ -55,7 +66,6 @@ namespace JustDownTheStreet
 
         private static Vector4 FindASpawnPoint()
         {
-            //Logger.Log("FindASpawnPoint()");
             Wait(666); // maybe give them time to spawn?
             Vehicle[] allVehicles = World.GetAllVehicles();
             Logger.Log("FindASpawnPoint(): looking at " + allVehicles.Length + " possible vehicles.");
@@ -63,20 +73,16 @@ namespace JustDownTheStreet
             foreach (Vehicle thisVehicle in allVehicles)
             {
                 Wait(0); // avoid slowing down gameplay
-                Logger.Log("FindASpawnPoint() distance: " +
-                            Math.Round(World.GetDistance(thisVehicle.Position, playerPosition), 3)
-                                .ToString(CultureInfo.InvariantCulture)
-                            + ", IsStopped: " + thisVehicle.IsStopped
-                            + ", Driver: " + thisVehicle.Driver.Model);
-                //Logger.Log("FindASpawnPoint() distance: " + World.GetDistance(thisVehicle.Position, playerPosition).ToString(CultureInfo.InvariantCulture));
-                //Logger.Log("thisVehicle IsStopped: " + thisVehicle.IsStopped);
-                //Logger.Log("thisVehicle Driver: " + thisVehicle.Driver.Model);
+//                Logger.Log("FindASpawnPoint() distance: " +
+//                            Math.Round(World.GetDistance(thisVehicle.Position, playerPosition), 3)
+//                                .ToString(CultureInfo.InvariantCulture)
+//                            + ", IsStopped: " + thisVehicle.IsStopped
+//                            + ", Driver: " + thisVehicle.Driver.Model);
                 if (World.GetDistance(thisVehicle.Position, playerPosition) > 25 &
                     World.GetDistance(thisVehicle.Position, playerPosition) < 125 &
                     thisVehicle.IsStopped &
                     thisVehicle.Driver.Model == 0x0) // lazy but should probably do OK for now.
                 {
-                    //Logger.Log("Found a parked car!");
                     Vector3 thisVehiclePosition = thisVehicle.Position;
                     float thisVehicleHeading = thisVehicle.Heading;
                     thisVehicle.Delete();
@@ -88,127 +94,82 @@ namespace JustDownTheStreet
             throw new InvalidOperationException("FindASpawnPoint(): couldn't find a suitable spawn point.");
         }
 
-        private VehicleDefinition SelectAPersonalVehicle(IReadOnlyList<VehicleDefinition> vehicleList)
-        {
-            if (vehicleList.Count == 0)
-            {
-                Logger.Log("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
-                throw new InvalidOperationException("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
-            }
-            int randomNumber = _rng.Next(vehicleList.Count);
-            VehicleDefinition selectedVehicleDefinition = vehicleList[randomNumber];
-            return selectedVehicleDefinition;
-        }
-
-        private void GeneratePersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
-        {
-            VehicleDefinition vehicleDefinition;
-            Vector4 aSpawnPoint;
-            try
-            {
-                aSpawnPoint = FindASpawnPoint();
-            }
-            catch (InvalidOperationException)
-            {
-                return;
-            }
-            try
-            {
-                switch (((PedHash)Game.Player.Character.Model.Hash).ToString())
-                {
-                    case "Michael":
-                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesMichael);
-                        break;
-                    case "Franklin":
-                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesFranklin);
-                        break;
-                    case "Trevor":
-                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesTrevor);
-                        break;
-                    default:
-                        Logger.Log("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
-                        throw new InvalidOperationException("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                return;
-            }
-            Vector3 createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates =
-                new Vector3(aSpawnPoint.X, aSpawnPoint.Y, aSpawnPoint.Z);
-            vehicle = World.CreateVehicle(vehicleDefinition.VehicleName,
-                createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates, aSpawnPoint.H);
-            vehicle.PlaceOnGround();
-            ConfigurePersonalVehicle(vehicle, vehicleDefinition);
-            Logger.Log("GeneratePersonalVehicleAndBlip(): placed a " + vehicle.PrimaryColor + " " + (VehicleHash)vehicle.Model.Hash + " at (" +
-                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.X, 3) + ", " +
-                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Y, 3) + ", " +
-                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Z, 3) + ")");
-            blip = vehicle.AddBlip();
-            blip.Sprite = BlipSprite.PersonalVehicleCar;
-        }
-
         private static void ConfigurePersonalVehicle(Vehicle vehicle, VehicleDefinition vehicleDefinition)
         {
             vehicle.NumberPlate = vehicleDefinition.Plate;
+            // for now I'm skipping the custom colors, I'm not actually sure if I can even set those...
+            vehicle.PrimaryColor = vehicleDefinition.Colors.Primary;
+            vehicle.SecondaryColor = vehicleDefinition.Colors.Secondary;
+            vehicle.PearlescentColor = vehicleDefinition.Colors.Pearlescent;
+            vehicle.RimColor = vehicleDefinition.Colors.Rim;
+            vehicle.NeonLightsColor = vehicleDefinition.Colors.Neon;
+            vehicle.TireSmokeColor = vehicleDefinition.Colors.TireSmoke;
+            vehicle.TrimColor = (VehicleColor)vehicleDefinition.Trim;
+            vehicle.DashboardColor = (VehicleColor)vehicleDefinition.Dashboard;
+            vehicle.CanTiresBurst = vehicleDefinition.CanTiresBurst;
+            vehicle.NumberPlateType = vehicleDefinition.NumberPlateType;
+            vehicle.WheelType = vehicleDefinition.WheelType;
+            vehicle.WindowTint = vehicleDefinition.WindowTint;
             vehicle.InstallModKit();
-            vehicle.SetMod(VehicleMod.Spoilers, vehicleDefinition.Spoilers, true);
-            vehicle.SetMod(VehicleMod.FrontBumper, vehicleDefinition.FrontBumper, true);
-            vehicle.SetMod(VehicleMod.RearBumper, vehicleDefinition.RearBumper, true);
-            vehicle.SetMod(VehicleMod.SideSkirt, vehicleDefinition.SideSkirt, true);
-            vehicle.SetMod(VehicleMod.Exhaust, vehicleDefinition.Exhaust, true);
-            vehicle.SetMod(VehicleMod.Frame, vehicleDefinition.Frame, true);
-            vehicle.SetMod(VehicleMod.Grille, vehicleDefinition.Grille, true);
-            vehicle.SetMod(VehicleMod.Hood, vehicleDefinition.Hood, true);
-            vehicle.SetMod(VehicleMod.Fender, vehicleDefinition.Fender, true);
-            vehicle.SetMod(VehicleMod.RightFender, vehicleDefinition.RightFender, true);
-            vehicle.SetMod(VehicleMod.Roof, vehicleDefinition.Roof, true);
-            vehicle.SetMod(VehicleMod.Engine, vehicleDefinition.Engine, true);
-            vehicle.SetMod(VehicleMod.Brakes, vehicleDefinition.Brakes, true);
-            vehicle.SetMod(VehicleMod.Transmission, vehicleDefinition.Transmission, true);
-            vehicle.SetMod(VehicleMod.Horns, vehicleDefinition.Horns, true);
-            vehicle.SetMod(VehicleMod.Suspension, vehicleDefinition.Suspension, true);
-            vehicle.SetMod(VehicleMod.Armor, vehicleDefinition.Armor, true);
-            vehicle.SetMod(VehicleMod.FrontWheels, vehicleDefinition.FrontWheel, true);
-            vehicle.SetMod(VehicleMod.BackWheels, vehicleDefinition.RearWheel, true);
-            vehicle.SetMod(VehicleMod.PlateHolder, vehicleDefinition.PlateHolder, true);
-            vehicle.SetMod(VehicleMod.VanityPlates, vehicleDefinition.VanityPlates, true);
-            vehicle.SetMod(VehicleMod.TrimDesign, vehicleDefinition.TrimDesign, true);
-            vehicle.SetMod(VehicleMod.Ornaments, vehicleDefinition.Ornaments, true);
-            vehicle.SetMod(VehicleMod.Dashboard, vehicleDefinition.Dashboard, true);
-            vehicle.SetMod(VehicleMod.DialDesign, vehicleDefinition.DialDesign, true);
-            vehicle.SetMod(VehicleMod.DoorSpeakers, vehicleDefinition.DoorSpeakers, true);
-            vehicle.SetMod(VehicleMod.Seats, vehicleDefinition.Seats, true);
-            vehicle.SetMod(VehicleMod.SteeringWheels, vehicleDefinition.SteeringWheels, true);
-            vehicle.SetMod(VehicleMod.ColumnShifterLevers, vehicleDefinition.ColumnShifterLevers, true);
-            vehicle.SetMod(VehicleMod.Plaques, vehicleDefinition.Plaques, true);
-            vehicle.SetMod(VehicleMod.Speakers, vehicleDefinition.Speakers, true);
-            vehicle.SetMod(VehicleMod.Trunk, vehicleDefinition.Trunk, true);
-            vehicle.SetMod(VehicleMod.Hydraulics, vehicleDefinition.Hydraulics, true);
-            vehicle.SetMod(VehicleMod.EngineBlock, vehicleDefinition.EngineBlock, true);
-            vehicle.SetMod(VehicleMod.AirFilter, vehicleDefinition.AirFilter, true);
-            vehicle.SetMod(VehicleMod.Struts, vehicleDefinition.Struts, true);
-            vehicle.SetMod(VehicleMod.ArchCover, vehicleDefinition.ArchCover, true);
-            vehicle.SetMod(VehicleMod.Aerials, vehicleDefinition.Aerials, true);
-            vehicle.SetMod(VehicleMod.Trim, vehicleDefinition.Trim, true);
-            vehicle.SetMod(VehicleMod.Tank, vehicleDefinition.Tank, true);
-            vehicle.SetMod(VehicleMod.Windows, vehicleDefinition.Windows, true);
-            vehicle.SetMod(VehicleMod.Livery, vehicleDefinition.Livery, true);
+            vehicle.SetMod(VehicleMod.Spoilers, vehicleDefinition.Spoilers, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.FrontBumper, vehicleDefinition.FrontBumper, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.RearBumper, vehicleDefinition.RearBumper, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.SideSkirt, vehicleDefinition.SideSkirt, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Exhaust, vehicleDefinition.Exhaust, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Frame, vehicleDefinition.Frame, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Grille, vehicleDefinition.Grille, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Hood, vehicleDefinition.Hood, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Fender, vehicleDefinition.Fender, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.RightFender, vehicleDefinition.RightFender, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Roof, vehicleDefinition.Roof, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Engine, vehicleDefinition.Engine, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Brakes, vehicleDefinition.Brakes, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Transmission, vehicleDefinition.Transmission, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Horns, vehicleDefinition.Horns, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Suspension, vehicleDefinition.Suspension, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Armor, vehicleDefinition.Armor, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.FrontWheels, vehicleDefinition.FrontWheel, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.BackWheels, vehicleDefinition.RearWheel, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.PlateHolder, vehicleDefinition.PlateHolder, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.VanityPlates, vehicleDefinition.VanityPlates, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.TrimDesign, vehicleDefinition.TrimDesign, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Ornaments, vehicleDefinition.Ornaments, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Dashboard, vehicleDefinition.Dashboard, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.DialDesign, vehicleDefinition.DialDesign, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.DoorSpeakers, vehicleDefinition.DoorSpeakers, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Seats, vehicleDefinition.Seats, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.SteeringWheels, vehicleDefinition.SteeringWheels, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.ColumnShifterLevers, vehicleDefinition.ColumnShifterLevers, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Plaques, vehicleDefinition.Plaques, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Speakers, vehicleDefinition.Speakers, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Trunk, vehicleDefinition.Trunk, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Hydraulics, vehicleDefinition.Hydraulics, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.EngineBlock, vehicleDefinition.EngineBlock, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.AirFilter, vehicleDefinition.AirFilter, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Struts, vehicleDefinition.Struts, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.ArchCover, vehicleDefinition.ArchCover, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Aerials, vehicleDefinition.Aerials, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Trim, vehicleDefinition.Trim, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Tank, vehicleDefinition.Tank, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Windows, vehicleDefinition.Windows, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.Livery, vehicleDefinition.Livery, vehicleDefinition.CustomTires);
             vehicle.ToggleMod(VehicleToggleMod.Turbo, vehicleDefinition.Turbo);
             vehicle.ToggleMod(VehicleToggleMod.TireSmoke, vehicleDefinition.TireSmoke);
             vehicle.ToggleMod(VehicleToggleMod.XenonHeadlights, vehicleDefinition.XenonHeadlights);
-            vehicle.CanTiresBurst = vehicleDefinition.CanTiresBurst;
-            // colors
-            // for now I'm skipping the customs, I'm not actually sure if I can even set those...
-            vehicle.PrimaryColor = vehicleDefinition.Colors.Primary;
-            vehicle.SecondaryColor = vehicleDefinition.Colors.Secondary;
-            vehicle.RimColor = vehicleDefinition.Colors.Rim;
-            //vehicle.NeonLightsColor = Color.FromArgb(0,vehicleDefinition.Colors.NeonR, vehicleDefinition.Colors.NeonG, vehicleDefinition.Colors.NeonB);
-            vehicle.NeonLightsColor = vehicleDefinition.Colors.Neon;
-            //vehicle.TireSmokeColor = Color.FromArgb(0, vehicleDefinition.Colors.TireSmokeR, vehicleDefinition.Colors.TireSmokeG, vehicleDefinition.Colors.TireSmokeB);
-            vehicle.TireSmokeColor = vehicleDefinition.Colors.TireSmoke;
-            vehicle.TrimColor = (VehicleColor)vehicleDefinition.Trim;
-            vehicle.DashboardColor = (VehicleColor) vehicleDefinition.Dashboard;
+            vehicle.ToggleExtra(01, vehicleDefinition.VehicleExtra01);
+            vehicle.ToggleExtra(02, vehicleDefinition.VehicleExtra02);
+            vehicle.ToggleExtra(03, vehicleDefinition.VehicleExtra03);
+            vehicle.ToggleExtra(04, vehicleDefinition.VehicleExtra04);
+            vehicle.ToggleExtra(05, vehicleDefinition.VehicleExtra05);
+            vehicle.ToggleExtra(06, vehicleDefinition.VehicleExtra06);
+            vehicle.ToggleExtra(07, vehicleDefinition.VehicleExtra07);
+            vehicle.ToggleExtra(08, vehicleDefinition.VehicleExtra08);
+            vehicle.ToggleExtra(09, vehicleDefinition.VehicleExtra09);
+            vehicle.ToggleExtra(10, vehicleDefinition.VehicleExtra10);
+            vehicle.ToggleExtra(11, vehicleDefinition.VehicleExtra11);
+            vehicle.ToggleExtra(12, vehicleDefinition.VehicleExtra12);
+            vehicle.ToggleExtra(13, vehicleDefinition.VehicleExtra13);
+            vehicle.ToggleExtra(14, vehicleDefinition.VehicleExtra14);
         }
 
         private static void CleanupPersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
@@ -226,22 +187,30 @@ namespace JustDownTheStreet
             }
         }
 
-        private static string GetHash(MD5 hash, string input) // from MSDN, but I think modified slightly
+        private static List<VehicleDefinition> GetAllPersonalVehiclesFromJson(string jsonfolder, string name)
         {
-            byte[] data = hash.ComputeHash(Encoding.UTF8.GetBytes(input)); // Convert the input string to a byte array and compute the hash.
-            StringBuilder sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
-            foreach (byte t in data) // Loop through each byte of the hashed data and format each one as a hexadecimal string.
+            List<VehicleDefinition> list = new List<VehicleDefinition>();
+            string[] jsonFiles = Directory.GetFiles(jsonfolder, "*.json");
+            foreach (string t in jsonFiles)
             {
-                sBuilder.Append(t.ToString("x2", CultureInfo.InvariantCulture));
+                Wait(0); // avoid slowing down gameplay
+                VehicleDefinition thisPersonalVehicleDefinition = JsonConvert.DeserializeObject<VehicleDefinition>(File.ReadAllText(t));
+                if (thisPersonalVehicleDefinition.Character == name)
+                {
+                    //Logger.Log("GetAllPersonalVehiclesFromJson(" + name + "): " + t);
+                    //Logger.Log("GetAllPersonalVehiclesFromJson(" + name + "): pearlescent color " + thisPersonalVehicleDefinition.Colors.Pearlescent);
+                    list.Add(thisPersonalVehicleDefinition);
+                }
             }
-            return sBuilder.ToString(); // Return the hexadecimal string.
+            Logger.Log("GetAllPersonalVehiclesFromJson(" + name + "): found " + list.Count + " vehicles");
+            return list;
         }
 
-        private void SaveCurrentVehicleToJson(string jsonfolder, string currentCharacterName)
+        private static void SaveCurrentVehicleToJson(string jsonfolder, string currentCharacterName)
         {
             Vehicle vehicle = Game.Player.Character.CurrentVehicle; // get the vehicle our player is in
             if (vehicle == null) return;
-            Colors vehicleColors = new Colors(vehicle.PrimaryColor,vehicle.SecondaryColor,vehicle.PearlescentColor)
+            Colors vehicleColors = new Colors(vehicle.PrimaryColor, vehicle.SecondaryColor, vehicle.PearlescentColor)
             {
                 Rim = vehicle.RimColor,
                 Neon = vehicle.NeonLightsColor,
@@ -251,6 +220,11 @@ namespace JustDownTheStreet
             };
             VehicleDefinition vehicleDefinition = new VehicleDefinition(((VehicleHash)vehicle.Model.Hash).ToString(), vehicle.NumberPlate, currentCharacterName)
             {
+                Colors = vehicleColors,
+                NumberPlateType = vehicle.NumberPlateType,
+                WheelType = vehicle.WheelType,
+                WindowTint = vehicle.WindowTint,
+                CustomTires = Function.Call<bool>(Hash.GET_VEHICLE_MOD_VARIATION, vehicle, 0),
                 Spoilers = vehicle.GetMod(VehicleMod.Spoilers),
                 FrontBumper = vehicle.GetMod(VehicleMod.FrontBumper),
                 RearBumper = vehicle.GetMod(VehicleMod.RearBumper),
@@ -297,10 +271,23 @@ namespace JustDownTheStreet
                 TireSmoke = vehicle.IsToggleModOn(VehicleToggleMod.TireSmoke),
                 XenonHeadlights = vehicle.IsToggleModOn(VehicleToggleMod.XenonHeadlights),
                 CanTiresBurst = vehicle.CanTiresBurst,
-                Colors = vehicleColors
+                VehicleExtra01 = vehicle.IsExtraOn(01),
+                VehicleExtra02 = vehicle.IsExtraOn(02),
+                VehicleExtra03 = vehicle.IsExtraOn(03),
+                VehicleExtra04 = vehicle.IsExtraOn(04),
+                VehicleExtra05 = vehicle.IsExtraOn(05),
+                VehicleExtra06 = vehicle.IsExtraOn(06),
+                VehicleExtra07 = vehicle.IsExtraOn(07),
+                VehicleExtra08 = vehicle.IsExtraOn(08),
+                VehicleExtra09 = vehicle.IsExtraOn(09),
+                VehicleExtra10 = vehicle.IsExtraOn(10),
+                VehicleExtra11 = vehicle.IsExtraOn(11),
+                VehicleExtra12 = vehicle.IsExtraOn(12),
+                VehicleExtra13 = vehicle.IsExtraOn(13),
+                VehicleExtra14 = vehicle.IsExtraOn(14)
             };
             string jsonString = JsonConvert.SerializeObject(vehicleDefinition, Formatting.Indented);
-            string vehiclehashcode = GetHash(_hash, jsonString);
+            string vehiclehashcode = GetHash(Md5Hash, jsonString);
             string fullPath = jsonfolder + currentCharacterName + "_" + vehicleDefinition.VehicleName + "_" +
                           vehiclehashcode + ".json";
             if (File.Exists(fullPath))
@@ -312,21 +299,65 @@ namespace JustDownTheStreet
             File.WriteAllText(fullPath, jsonString);
         }
 
-        private static List<VehicleDefinition> GetAllPersonalVehiclesFromJson(string jsonfolder, string name)
+        private static VehicleDefinition SelectAPersonalVehicle(IReadOnlyList<VehicleDefinition> vehicleList)
         {
-            List<VehicleDefinition> list = new List<VehicleDefinition>();
-            string[] jsonFiles = Directory.GetFiles(jsonfolder, "*.json");
-            foreach (string t in jsonFiles)
+            if (vehicleList.Count == 0)
             {
-                Wait(0); // avoid slowing down gameplay
-                VehicleDefinition thisPersonalVehicleDefinition = JsonConvert.DeserializeObject<VehicleDefinition>(File.ReadAllText(t));
-                if (thisPersonalVehicleDefinition.Character == name)
+                Logger.Log("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
+                throw new InvalidOperationException("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
+            }
+            int randomNumber = Rng.Next(vehicleList.Count);
+            VehicleDefinition selectedVehicleDefinition = vehicleList[randomNumber];
+            return selectedVehicleDefinition;
+        }
+
+        private void GeneratePersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
+        {
+            VehicleDefinition vehicleDefinition;
+            Vector4 aSpawnPoint;
+            try
+            {
+                aSpawnPoint = FindASpawnPoint();
+            }
+            catch (InvalidOperationException)
+            {
+                return;
+            }
+            try
+            {
+                switch (((PedHash)Game.Player.Character.Model.Hash).ToString())
                 {
-                    list.Add(thisPersonalVehicleDefinition);
+                    case "Michael":
+                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesMichael);
+                        break;
+                    case "Franklin":
+                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesFranklin);
+                        break;
+                    case "Trevor":
+                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesTrevor);
+                        break;
+                    default:
+                        Logger.Log("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
+                        throw new InvalidOperationException("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
                 }
             }
-            Logger.Log("GetAllPersonalVehiclesFromJson(" + name + "): found " + list.Count + " vehicles");
-            return list;
+            catch (InvalidOperationException)
+            {
+                return;
+            }
+            Vector3 createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates =
+                new Vector3(aSpawnPoint.X, aSpawnPoint.Y, aSpawnPoint.Z);
+            vehicle = World.CreateVehicle(vehicleDefinition.VehicleName,
+                createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates, aSpawnPoint.H);
+            vehicle.PlaceOnGround();
+            ConfigurePersonalVehicle(vehicle, vehicleDefinition);
+            vehicle.LockStatus = VehicleLockStatus.Locked;
+            Logger.Log("GeneratePersonalVehicleAndBlip(): placed a " + vehicle.PrimaryColor + " " + (VehicleHash)vehicle.Model.Hash + " at (" +
+                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.X, 3) + ", " +
+                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Y, 3) + ", " +
+                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Z, 3) + ")");
+            blip = vehicle.AddBlip();
+            blip.Sprite = BlipSprite.PersonalVehicleCar;
         }
 
         private void Init()
@@ -347,7 +378,10 @@ namespace JustDownTheStreet
 
         private void OnTick(object sender, EventArgs e)
         {
-            
+            if (_personalVehicle != null && World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) < 25)
+            {
+                _personalVehicle.LockStatus = VehicleLockStatus.Unlocked;
+            }
             if (_firstTick) // every tick, check if this is the first tick. If it is, run Init()
             {
                 Init();

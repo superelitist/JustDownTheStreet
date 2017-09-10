@@ -18,13 +18,7 @@ namespace JustDownTheStreet
         //public int CustomSecondaryB { get; set; }
         public VehicleColor Rim { get; set; }
         public Color Neon { get; set; }
-        //public int NeonR { get; set; }
-        //public int NeonG { get; set; }
-        //public int NeonB { get; set; }
         public Color TireSmoke { get; set; }
-        //public int TireSmokeR { get; set; }
-        //public int TireSmokeG { get; set; }
-        //public int TireSmokeB { get; set; }
         public VehicleColor Trim { get; set; }
         public VehicleColor Dashboard { get; set; }
 
@@ -43,13 +37,7 @@ namespace JustDownTheStreet
             //CustomSecondaryB = default(int);
             Rim = default(VehicleColor);
             Neon = default(Color);
-            //NeonR = default(int);
-            //NeonG = default(int);
-            //NeonB = default(int);
             TireSmoke = default(Color);
-            //TireSmokeR = default(int);
-            //TireSmokeG = default(int);
-            //TireSmokeB = default(int);
             Trim = default(VehicleColor);
             Dashboard = default(VehicleColor);
         }
