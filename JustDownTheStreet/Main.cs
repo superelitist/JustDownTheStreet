@@ -25,7 +25,7 @@ using Control = GTA.Control;
 
 namespace JustDownTheStreet
 {
-    public class Main : Script      // This is the beginning of the script, public class
+    public class Main : Script // This is the beginning of the script, public class
     {
         private static readonly Random Rng = new Random();
         private static readonly MD5 Md5Hash = new MD5Cng();
@@ -35,49 +35,58 @@ namespace JustDownTheStreet
         private static int _millisecondsToDelayQualityOfLife = 333333;
         private static int _minimumMultipleOfPlayerMoneyToPurchase = 11;
         private static int _priceOfBodyArmor = 6666;
-        private static List<VehicleDefinition> _personalVehiclesMichael = new List<VehicleDefinition>();
-        private static List<VehicleDefinition> _personalVehiclesFranklin = new List<VehicleDefinition>();
-        private static List<VehicleDefinition> _personalVehiclesTrevor = new List<VehicleDefinition>();
+        internal static List<VehicleDefinition> PersonalVehiclesMichael = new List<VehicleDefinition>();
+        internal static List<VehicleDefinition> PersonalVehiclesFranklin = new List<VehicleDefinition>();
+        internal static List<VehicleDefinition> PersonalVehiclesTrevor = new List<VehicleDefinition>();
+        internal static List<VehicleDefinition> CurrentVehicleDefinitions = new List<VehicleDefinition>();
         private static string _currentPlayerName;
         private bool _playerIsInControl;
-        private Vehicle _personalVehicle;
-        private Blip _personalVehicleBlip;
-        private readonly string _jsonFolder = AppDomain.CurrentDomain.BaseDirectory + "/jdts/";
+        private static Vehicle _personalVehicle;
+        private static Blip _personalVehicleBlip;
+        internal static readonly string JsonFolder = AppDomain.CurrentDomain.BaseDirectory + "/jdts/";
         private bool _waiting;
         private readonly System.Timers.Timer _findASpawnPointRetryTimer = new System.Timers.Timer(3333);
         private readonly Stopwatch _lastTimeMichaelWasInControl = new Stopwatch();
         private readonly Stopwatch _lastTimeFranklinWasInControl = new Stopwatch();
         private readonly Stopwatch _lastTimeTrevorWasInControl = new Stopwatch();
+        private MainMenu _theScriptMainMenuInstance = new MainMenu();
 
         public Main()
         {
             Logger.Log("----------------------------------------------------------------");
             Logger.Log("Main(): Script initializing");
-            
-            
-            Directory.CreateDirectory(_jsonFolder);
-            
-            _personalVehiclesMichael = GetAllPersonalVehiclesFromJson(_jsonFolder, "Michael");
-            _personalVehiclesFranklin = GetAllPersonalVehiclesFromJson(_jsonFolder, "Franklin"); // get our vehicles from files
-            _personalVehiclesTrevor = GetAllPersonalVehiclesFromJson(_jsonFolder, "Trevor");
-            while (!Game.Player.CanControlCharacter) // check if player has control, probably indicating that the game has finished loading
+
+
+            Directory.CreateDirectory(JsonFolder);
+
+            PersonalVehiclesMichael = GetAllPersonalVehiclesFromJson(JsonFolder, "Michael");
+            PersonalVehiclesFranklin = GetAllPersonalVehiclesFromJson(JsonFolder, "Franklin"); // get our vehicles from files
+            PersonalVehiclesTrevor = GetAllPersonalVehiclesFromJson(JsonFolder, "Trevor");
+            while (!Game.Player.CanControlCharacter
+            ) // check if player has control, probably indicating that the game has finished loading
             {
                 Wait(0);
             }
+
             _lastTimeMichaelWasInControl.Start();
             _lastTimeFranklinWasInControl.Start();
             _lastTimeTrevorWasInControl.Start();
+            //_theScriptMainMenuInstance = new MainMenu();
             Tick += OnTick;
             KeyDown += KeyDownHandler;
-            KeyUp += KeyUpHandler;   // hook up the handlers
+            KeyUp += KeyUpHandler; // hook up the handlers
             _findASpawnPointRetryTimer.Elapsed += FindASpawnPointRetryTimerHandler; // init the retry timer
         }
 
         private static string GetHash(MD5 hash, string input) // from MSDN, but I think modified slightly
         {
-            byte[] data = hash.ComputeHash(Encoding.UTF8.GetBytes(input)); // Convert the input string to a byte array and compute the hash.
-            StringBuilder sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
-            foreach (byte t in data) // Loop through each byte of the hashed data and format each one as a hexadecimal string.
+            byte[]
+                data = hash.ComputeHash(
+                    Encoding.UTF8.GetBytes(input)); // Convert the input string to a byte array and compute the hash.
+            StringBuilder
+                sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
+            foreach (byte t in data
+            ) // Loop through each byte of the hashed data and format each one as a hexadecimal string.
             {
                 sBuilder.Append(t.ToString("x2", CultureInfo.InvariantCulture));
             }
@@ -95,7 +104,7 @@ namespace JustDownTheStreet
             }
             return false;
         }
-        
+
         private static Vector4 FindASpawnPoint()
         {
             //Wait(666); // maybe give them time to spawn? - not needed now that I retry...
@@ -144,8 +153,8 @@ namespace JustDownTheStreet
             vehicle.RimColor = vehicleDefinition.Colors.Rim;
             vehicle.NeonLightsColor = vehicleDefinition.Colors.Neon;
             vehicle.TireSmokeColor = vehicleDefinition.Colors.TireSmoke;
-            vehicle.TrimColor = (VehicleColor)vehicleDefinition.Trim;
-            vehicle.DashboardColor = (VehicleColor)vehicleDefinition.Dashboard;
+            vehicle.TrimColor = (VehicleColor) vehicleDefinition.Trim;
+            vehicle.DashboardColor = (VehicleColor) vehicleDefinition.Dashboard;
             vehicle.CanTiresBurst = vehicleDefinition.CanTiresBurst;
             vehicle.NumberPlateType = vehicleDefinition.NumberPlateType;
             vehicle.WheelType = vehicleDefinition.WheelType;
@@ -179,7 +188,8 @@ namespace JustDownTheStreet
             vehicle.SetMod(VehicleMod.DoorSpeakers, vehicleDefinition.DoorSpeakers, vehicleDefinition.CustomTires);
             vehicle.SetMod(VehicleMod.Seats, vehicleDefinition.Seats, vehicleDefinition.CustomTires);
             vehicle.SetMod(VehicleMod.SteeringWheels, vehicleDefinition.SteeringWheels, vehicleDefinition.CustomTires);
-            vehicle.SetMod(VehicleMod.ColumnShifterLevers, vehicleDefinition.ColumnShifterLevers, vehicleDefinition.CustomTires);
+            vehicle.SetMod(VehicleMod.ColumnShifterLevers, vehicleDefinition.ColumnShifterLevers,
+                vehicleDefinition.CustomTires);
             vehicle.SetMod(VehicleMod.Plaques, vehicleDefinition.Plaques, vehicleDefinition.CustomTires);
             vehicle.SetMod(VehicleMod.Speakers, vehicleDefinition.Speakers, vehicleDefinition.CustomTires);
             vehicle.SetMod(VehicleMod.Trunk, vehicleDefinition.Trunk, vehicleDefinition.CustomTires);
@@ -212,7 +222,7 @@ namespace JustDownTheStreet
             vehicle.ToggleExtra(14, vehicleDefinition.VehicleExtra14);
         }
 
-        private static void CleanupPersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
+        internal static void CleanupPersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
         {
             Wait(1333); // or the player ped will be standing in the middle of the street.
             Logger.Log("CleanupPersonalVehicleAndBlip(): removing vehicle and blip.");
@@ -222,7 +232,7 @@ namespace JustDownTheStreet
             }
             if (vehicle != null)
             {
-                vehicle.Delete();
+                vehicle.MarkAsNoLongerNeeded();
                 vehicle = null;
             }
         }
@@ -234,11 +244,13 @@ namespace JustDownTheStreet
             foreach (string t in jsonFiles)
             {
                 //Wait(0); // avoid slowing down gameplay
-                VehicleDefinition thisPersonalVehicleDefinition = JsonConvert.DeserializeObject<VehicleDefinition>(File.ReadAllText(t));
+                VehicleDefinition thisPersonalVehicleDefinition =
+                    JsonConvert.DeserializeObject<VehicleDefinition>(File.ReadAllText(t));
                 if (thisPersonalVehicleDefinition.Character != name) continue;
                 if (!new Model(thisPersonalVehicleDefinition.VehicleName).IsVehicle)
                 {
-                    Logger.Log("GetAllPersonalVehiclesFromJson(): " + thisPersonalVehicleDefinition.VehicleName + " does not appear to be a valid vehicle, skipping.");
+                    Logger.Log("GetAllPersonalVehiclesFromJson(): " + thisPersonalVehicleDefinition.VehicleName +
+                               " does not appear to be a valid vehicle, skipping.");
                     continue;
                 }
                 list.Add(thisPersonalVehicleDefinition);
@@ -247,7 +259,7 @@ namespace JustDownTheStreet
             return list;
         }
 
-        private static void SaveCurrentVehicleToJson(string jsonfolder, string currentCharacterName)
+        internal static void SaveCurrentVehicleToJson(string jsonfolder, string currentCharacterName)
         {
             Vehicle vehicle = Game.Player.Character.CurrentVehicle; // get the vehicle our player is in
             if (vehicle == null) return;
@@ -259,7 +271,8 @@ namespace JustDownTheStreet
                 Trim = vehicle.TrimColor,
                 Dashboard = vehicle.DashboardColor
             };
-            VehicleDefinition vehicleDefinition = new VehicleDefinition(((VehicleHash)vehicle.Model.Hash).ToString(), vehicle.NumberPlate, currentCharacterName)
+            VehicleDefinition vehicleDefinition = new VehicleDefinition(((VehicleHash) vehicle.Model.Hash).ToString(),
+                vehicle.NumberPlate, currentCharacterName)
             {
                 Colors = vehicleColors,
                 NumberPlateType = vehicle.NumberPlateType,
@@ -330,7 +343,7 @@ namespace JustDownTheStreet
             string jsonString = JsonConvert.SerializeObject(vehicleDefinition, Formatting.Indented);
             string vehiclehashcode = GetHash(Md5Hash, jsonString);
             string fullPath = jsonfolder + currentCharacterName + "_" + vehicleDefinition.VehicleName + "_" +
-                          vehiclehashcode + ".json";
+                              vehiclehashcode + ".json";
             if (File.Exists(fullPath))
             {
                 Logger.Log(fullPath + "- vehicle exists, skipping save.");
@@ -340,19 +353,20 @@ namespace JustDownTheStreet
             File.WriteAllText(fullPath, jsonString);
         }
 
-        private static VehicleDefinition SelectAPersonalVehicle(IReadOnlyList<VehicleDefinition> vehicleList)
+        private static VehicleDefinition SelectARandomPersonalVehicle(IReadOnlyList<VehicleDefinition> vehicleList)
         {
             if (vehicleList.Count == 0)
             {
-                Logger.Log("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
-                throw new InvalidOperationException("SelectAPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
+                Logger.Log("SelectARandomPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
+                throw new InvalidOperationException(
+                    "SelectARandomPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
             }
             int randomNumber = Rng.Next(vehicleList.Count);
             VehicleDefinition selectedVehicleDefinition = vehicleList[randomNumber];
             return selectedVehicleDefinition;
         }
 
-        private static void GeneratePersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
+        private static void GeneratePersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip, VehicleDefinition specificVehicleDefinition = null)
         {
             VehicleDefinition vehicleDefinition;
             Vector4 aSpawnPoint;
@@ -365,25 +379,28 @@ namespace JustDownTheStreet
             {
                 return;
             }
+
             try
             {
                 switch (_currentPlayerName)
                 {
                     case "Michael":
-                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesMichael);
-                        colorToUse = (int)BlipColor.Blue;
+                        vehicleDefinition = SelectARandomPersonalVehicle(PersonalVehiclesMichael);
+                        colorToUse = (int) BlipColor.Blue;
                         break;
                     case "Franklin":
-                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesFranklin);
+                        vehicleDefinition = SelectARandomPersonalVehicle(PersonalVehiclesFranklin);
                         colorToUse = (int) BlipColor.Green;
                         break;
                     case "Trevor":
-                        vehicleDefinition = SelectAPersonalVehicle(_personalVehiclesTrevor);
+                        vehicleDefinition = SelectARandomPersonalVehicle(PersonalVehiclesTrevor);
                         colorToUse = 17; // wtf Trevor's color isn't even an enum?
                         break;
                     default:
-                        Logger.Log("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
-                        throw new InvalidOperationException("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
+                        Logger.Log(
+                            "GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
+                        throw new InvalidOperationException(
+                            "GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
                 }
             }
             catch (InvalidOperationException)
@@ -391,22 +408,34 @@ namespace JustDownTheStreet
                 Logger.Log("GeneratePersonalVehicleAndBlip(): InvalidOperationException");
                 return;
             }
+
+            if (specificVehicleDefinition != null) vehicleDefinition = specificVehicleDefinition;
+
             Vector3 createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates =
                 new Vector3(aSpawnPoint.X, aSpawnPoint.Y, aSpawnPoint.Z);
             vehicle = World.CreateVehicle(vehicleDefinition.VehicleName,
-                createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates, aSpawnPoint.H);
+                createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates,
+                aSpawnPoint.H);
             if (vehicle == null)
             {
-                Logger.Log("GeneratePersonalVehicleAndBlip(): World.CreateVehicle() failed to create a vehicle, which should never happen.");
+                Logger.Log(
+                    "GeneratePersonalVehicleAndBlip(): World.CreateVehicle() failed to create a vehicle, which should never happen.");
                 return;
             }
             vehicle.PlaceOnGround();
             ConfigurePersonalVehicle(vehicle, vehicleDefinition);
             vehicle.LockStatus = VehicleLockStatus.Locked;
-            Logger.Log("GeneratePersonalVehicleAndBlip(): placed a " + vehicle.PrimaryColor + " " + (VehicleHash)vehicle.Model.Hash + " at (" +
-                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.X, 3) + ", " +
-                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Y, 3) + ", " +
-                Math.Round(createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates.Z, 3) + ")");
+            Logger.Log("GeneratePersonalVehicleAndBlip(): placed a " + vehicle.PrimaryColor + " " +
+                       (VehicleHash) vehicle.Model.Hash + " at (" +
+                       Math.Round(
+                           createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates
+                               .X, 3) + ", " +
+                       Math.Round(
+                           createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates
+                               .Y, 3) + ", " +
+                       Math.Round(
+                           createVehicleVector3BecauseCreateVehicleIsStupidAndDoesNotDefineAConstructorForPlainXyzCoordinates
+                               .Z, 3) + ")");
             blip = vehicle.AddBlip();
             blip.Sprite = BlipSprite.PersonalVehicleCar;
             blip.Name = vehicleDefinition.VehicleName;
@@ -414,11 +443,19 @@ namespace JustDownTheStreet
             Function.Call(Hash.SET_BLIP_COLOUR, blip, colorToUse);
         }
 
+        internal static void RequestANewPersonalVehicle(VehicleDefinition specificVehicleDefinition = null)
+        {
+            CleanupPersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
+            //_findASpawnPointRetryTimer.Start();
+            GeneratePersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip, specificVehicleDefinition);
+        }
+
         private static void ProvideQualityOfLifeForCharacter()
         {
             Game.Player.Character.Health = Game.Player.Character.MaxHealth;
             Logger.Log("ProvideQualityOfLifeForCharacter(): Game.Player.Money = " + Game.Player.Money);
-            if ((Game.Player.Character.Armor < 100) && (Game.Player.Money > _priceOfBodyArmor * _minimumMultipleOfPlayerMoneyToPurchase))
+            if ((Game.Player.Character.Armor < 100) &&
+                (Game.Player.Money > _priceOfBodyArmor * _minimumMultipleOfPlayerMoneyToPurchase))
             {
                 Game.Player.Money -= _priceOfBodyArmor;
                 Game.Player.Character.Armor = 100;
@@ -431,52 +468,35 @@ namespace JustDownTheStreet
                 int maxAmmo = Game.Player.Character.Weapons[thisWeapon].MaxAmmo;
                 int currentAmmo = Game.Player.Character.Weapons[thisWeapon].Ammo;
                 int ammunitionToPurchase = maxAmmo - currentAmmo;
-                string thisWeaponGroupString = Enum.GetName(typeof(WeaponGroup), Game.Player.Character.Weapons[thisWeapon].Group);
+                string thisWeaponGroupString =
+                    Enum.GetName(typeof(WeaponGroup), Game.Player.Character.Weapons[thisWeapon].Group);
                 if (thisWeaponGroupString == null) continue;
-                AmmunitionPrices ammunitionPrice = (AmmunitionPrices)Enum.Parse(typeof(AmmunitionPrices), thisWeaponGroupString);
+                AmmunitionPrices ammunitionPrice =
+                    (AmmunitionPrices) Enum.Parse(typeof(AmmunitionPrices), thisWeaponGroupString);
                 if (thisWeapon == WeaponHash.Minigun) ammunitionPrice = AmmunitionPrices.MG;
-                int ammunitionTotalPrice = ammunitionToPurchase * (int)ammunitionPrice;
+                int ammunitionTotalPrice = ammunitionToPurchase * (int) ammunitionPrice;
                 if (Game.Player.Money <= ammunitionTotalPrice * _minimumMultipleOfPlayerMoneyToPurchase) continue;
                 Game.Player.Money -= ammunitionTotalPrice;
                 Game.Player.Character.Weapons[thisWeapon].Ammo = Game.Player.Character.Weapons[thisWeapon].MaxAmmo;
-                if (ammunitionToPurchase > 0) Logger.Log("ProvideQualityOfLifeForCharacter(): buying " + ammunitionToPurchase + " rounds of " + thisWeaponGroupString + " ammunition for " + ammunitionTotalPrice + " dollars.");
+                if (ammunitionToPurchase > 0)
+                    Logger.Log("ProvideQualityOfLifeForCharacter(): buying " + ammunitionToPurchase + " rounds of " +
+                               thisWeaponGroupString + " ammunition for " + ammunitionTotalPrice + " dollars.");
             }
         }
 
         private static void GenerateAllPersonalVehicles()
         {
-            List<VehicleDefinition> vehicleDefinitions;
-            float offset = (float)2.5;
-            var position = Game.Player.Character.GetOffsetInWorldCoords(new Vector3(0, offset, 0)); // 5 meters in front of the player
+            float offset = (float) 2.5;
+            var position =
+                Game.Player.Character.GetOffsetInWorldCoords(new Vector3(0, offset,
+                    0)); // 5 meters in front of the player
             var heading = Game.Player.Character.Heading - 90; // At 90 degrees to the players heading
-            try
-            {
-                switch (((PedHash)Game.Player.Character.Model.Hash).ToString())
-                {
-                    case "Michael":
-                        vehicleDefinitions = _personalVehiclesMichael;
-                        break;
-                    case "Franklin":
-                        vehicleDefinitions = _personalVehiclesFranklin;
-                        break;
-                    case "Trevor":
-                        vehicleDefinitions = _personalVehiclesTrevor;
-                        break;
-                    default:
-                        Logger.Log("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
-                        throw new InvalidOperationException("GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                return;
-            }
-            foreach (var vehicleDefinition in vehicleDefinitions)
+            foreach (var vehicleDefinition in CurrentVehicleDefinitions)
             {
                 Vehicle vehicle = World.CreateVehicle(vehicleDefinition.VehicleName, position, heading);
                 vehicle.PlaceOnGround();
                 ConfigurePersonalVehicle(vehicle, vehicleDefinition);
-                offset = offset + (float)3.5;
+                offset = offset + (float) 3.5;
                 position = Game.Player.Character.GetOffsetInWorldCoords(new Vector3(0, offset, 0));
             }
 
@@ -486,17 +506,23 @@ namespace JustDownTheStreet
         private void OnTick(object sender, EventArgs e) // roughly every 16ms (60 times per second)
         {
             Logger.LogFPS();
+            _theScriptMainMenuInstance.OnTickHandler();
 
             if (_personalVehicle != null)
             {
-                _personalVehicle.LockStatus = World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) < _personalVehicleLockUnlockRange ? VehicleLockStatus.Unlocked : VehicleLockStatus.Locked;
+                _personalVehicle.LockStatus =
+                    World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) <
+                    _personalVehicleLockUnlockRange
+                        ? VehicleLockStatus.Unlocked
+                        : VehicleLockStatus.Locked;
 
-                if (World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) > _personalVehicleDespawnRange)
+                if (World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) >
+                    _personalVehicleDespawnRange)
                 {
                     CleanupPersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
                 }
             }
-            
+
             if (_playerIsInControl && IsPlayerSwitchingUnderArrestDeadOrLoading()) // is the player switching but wasn't already?
             {
                 Logger.Log("OnTick(): Player has lost control of " + _currentPlayerName);
@@ -512,43 +538,62 @@ namespace JustDownTheStreet
                         _lastTimeTrevorWasInControl.Restart();
                         break;
                     default:
-                        throw new InvalidOperationException("OnTick(): couldn't match on character name. This should never happen.");
+                        throw new InvalidOperationException(
+                            "OnTick(): couldn't match on character name. This should never happen.");
                 }
                 _playerIsInControl = false;
-                CleanupPersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
                 return;
             }
 
             if (!_playerIsInControl && !IsPlayerSwitchingUnderArrestDeadOrLoading())
             {
-                _currentPlayerName = ((PedHash)Game.Player.Character.Model.Hash).ToString();
+                _currentPlayerName = ((PedHash) Game.Player.Character.Model.Hash).ToString();
                 Logger.Log("OnTick(): Player has gained control of " + _currentPlayerName);
-                Logger.Log("OnTick(): _lastTimeMichaelWasInControl.ElapsedMilliseconds " + _lastTimeMichaelWasInControl.ElapsedMilliseconds);
-                Logger.Log("OnTick(): _lastTimeFranklinWasInControl.ElapsedMilliseconds " + _lastTimeFranklinWasInControl.ElapsedMilliseconds);
-                Logger.Log("OnTick(): _lastTimeTrevorWasInControl.ElapsedMilliseconds " + _lastTimeTrevorWasInControl.ElapsedMilliseconds);
-                if ((_currentPlayerName == "Michael" && _lastTimeMichaelWasInControl.ElapsedMilliseconds > _millisecondsToDelayQualityOfLife) ||
-                    (_currentPlayerName == "Franklin" && _lastTimeFranklinWasInControl.ElapsedMilliseconds > _millisecondsToDelayQualityOfLife) ||
-                    (_currentPlayerName == "Trevor" && _lastTimeTrevorWasInControl.ElapsedMilliseconds > _millisecondsToDelayQualityOfLife))
-                {
-                    ProvideQualityOfLifeForCharacter();
-                }
                 _playerIsInControl = true;
                 _waiting = false;
-                
+                try
+                {
+                    switch (_currentPlayerName)
+                    {
+                        case "Michael":
+                            CurrentVehicleDefinitions = PersonalVehiclesMichael;
+                            Logger.Log("OnTick(): _lastTimeMichaelWasInControl.ElapsedMilliseconds " + _lastTimeMichaelWasInControl.ElapsedMilliseconds);
+                            if (_lastTimeMichaelWasInControl.ElapsedMilliseconds > _millisecondsToDelayQualityOfLife) ProvideQualityOfLifeForCharacter();
+                            break;
+                        case "Franklin":
+                            CurrentVehicleDefinitions = PersonalVehiclesFranklin;
+                            Logger.Log("OnTick(): _lastTimeFranklinWasInControl.ElapsedMilliseconds " + _lastTimeFranklinWasInControl.ElapsedMilliseconds);
+                            if (_lastTimeFranklinWasInControl.ElapsedMilliseconds > _millisecondsToDelayQualityOfLife) ProvideQualityOfLifeForCharacter();
+                            break;
+                        case "Trevor":
+                            CurrentVehicleDefinitions = PersonalVehiclesTrevor;
+                            Logger.Log("OnTick(): _lastTimeTrevorWasInControl.ElapsedMilliseconds " + _lastTimeTrevorWasInControl.ElapsedMilliseconds);
+                            if (_lastTimeTrevorWasInControl.ElapsedMilliseconds > _millisecondsToDelayQualityOfLife) ProvideQualityOfLifeForCharacter();
+                            break;
+                        default:
+                            Logger.Log("OnTick(): couldn't match on character name. This should never happen.");
+                            throw new InvalidOperationException("OnTick(): couldn't match on character name. This should never happen.");
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    return;
+                }    
             }
 
             if (_playerIsInControl && _personalVehicle == null && !_waiting)
             {
-                Logger.Log("OnTick(): Player does not have a personal vehicle.");
-                GeneratePersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
+                Logger.Log("OnTick(): " + _currentPlayerName + " does not have a nearby personal vehicle.");
+                RequestANewPersonalVehicle();
                 if (_personalVehicle == null)
                 {
-                    Logger.Log("OnTick(): GeneratePersonalVehicleAndBlip() seems to have failed, waiting a bit then trying again.");
-                    _findASpawnPointRetryTimer.Start(); 
+                    Logger.Log(
+                        "OnTick(): GeneratePersonalVehicleAndBlip() seems to have failed, waiting a bit then trying again.");
+                    _findASpawnPointRetryTimer.Start();
                     _waiting = true;
                 }
             }
-            
+
             XBoxControllerUpdate();
         }
 
@@ -558,36 +603,37 @@ namespace JustDownTheStreet
             _findASpawnPointRetryTimer.Stop();
         }
 
-        private void KeyDownHandler(object sender, KeyEventArgs e)       // Code inside this is what happens when a key gets pushed down or held down
+        private void KeyDownHandler(object sender, KeyEventArgs e) // Code inside this is what happens when a key gets pushed down or held down
         {
+
         }
 
-        private void KeyUpHandler(object sender, KeyEventArgs e)     // Code inside this is what happens when a key gets released
+        private void KeyUpHandler(object sender, KeyEventArgs e) // Code inside this is what happens when a key gets released
         {
             if (e.KeyCode == Keys.OemCloseBrackets)
             {
-                if (Game.IsKeyPressed(Keys.OemOpenBrackets))
-                {
-                    GenerateAllPersonalVehicles();
-                }
-                if (Game.IsKeyPressed(Keys.OemPipe))
-                {
-                    ProvideQualityOfLifeForCharacter();
-                }
+                //if (Game.IsKeyPressed(Keys.OemOpenBrackets)) GenerateAllPersonalVehicles();
+                //if (Game.IsKeyPressed(Keys.OemPipe)) ProvideQualityOfLifeForCharacter();
+                
             }
-            
         }
-
 
         private void XBoxControllerUpdate()
         {
             if (Game.IsControlPressed(0, Control.ScriptPadDown) && Game.IsControlJustReleased(0, Control.ScriptLB))
             {
-                SaveCurrentVehicleToJson(_jsonFolder, ((PedHash)Game.Player.Character.Model.Hash).ToString());
+                //SaveCurrentVehicleToJson(_jsonFolder, ((PedHash) Game.Player.Character.Model.Hash).ToString());
+                _theScriptMainMenuInstance = new MainMenu();
+                _theScriptMainMenuInstance.ToggleMenu(); // this is not a real thing
             }
-            if (Game.IsControlPressed(0, Control.ScriptPadDown) && Game.IsControlJustReleased(0, Control.ScriptLT) && Game.IsControlJustReleased(0, Control.ScriptRT))
+            if (Game.IsControlPressed(0, Control.ScriptPadDown) && Game.IsControlJustReleased(0, Control.ScriptRS))
             {
-                GenerateAllPersonalVehicles();
+                //Logger.LogPosition();
+            }
+            if (Game.IsControlPressed(0, Control.ScriptPadDown) && Game.IsControlJustReleased(0, Control.ScriptLT) &&
+                Game.IsControlJustReleased(0, Control.ScriptRT))
+            {
+                //GenerateAllPersonalVehicles();
                 
             }
         }
