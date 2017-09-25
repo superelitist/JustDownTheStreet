@@ -9,27 +9,27 @@ using GTA.Math;
 
 namespace JustDownTheStreet
 {
-    internal struct Vector4
+  internal struct Vector4
+  {
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Z { get; set; }
+    public float H { get; set; }
+
+    public Vector4( float x, float y, float z, float h )
     {
-        public float X { get; set; }
-        public float Y { get; set; }
-        public float Z { get; set; }
-        public float H { get; set; }
-
-        public Vector4(float x, float y, float z, float h)
-        {
-            X = x;
-            Y = y;
-            Z = z;
-            H = h;
-        }
-
-        public Vector4(Vector3 vector3, float h)
-        {
-            X = vector3.X;
-            Y = vector3.Y;
-            Z = vector3.Z;
-            H = h;
-        }
+      X = x;
+      Y = y;
+      Z = z;
+      H = h;
     }
+
+    public Vector4( Vector3 vector3, float h )
+    {
+      X = vector3.X;
+      Y = vector3.Y;
+      Z = vector3.Z;
+      H = h;
+    }
+  }
 }
