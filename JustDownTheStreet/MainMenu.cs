@@ -4,7 +4,7 @@ using NativeUI;
 using static JustDownTheStreet.Main;
 
 namespace JustDownTheStreet {
-  internal class MainMenu {
+  public class MainMenu {
     private MenuPool _menuPool = new MenuPool();
     private UIMenu _mainMenu = new UIMenu( "You Have A Lot Of Cars", "~b~A SUBTEXT" );
 
@@ -20,7 +20,7 @@ namespace JustDownTheStreet {
           return;
         }
         UI.Notify( "Saving current vehicle..." );
-        SaveCurrentVehicleToJson( JsonFolder, ( (PedHash)Game.Player.Character.Model.Hash ).ToString() );
+        JsonController.SaveCurrentVehicleToJson( CurrentPlayerName );
       };
     }
 
@@ -33,20 +33,20 @@ namespace JustDownTheStreet {
         //string output = ketchup ? "You have ordered ~b~{0}~w~ ~r~with~w~ ketchup." : "You have ordered ~b~{0}~w~ ~r~without~w~ ketchup.";
         //UI.ShowSubtitle(String.Format(output, dish));
         UI.Notify( "Requesting a vehicle" );
-        DeployANewPersonalVehicle(isDelivery: true);
+        PersonalVehicleController.DeployANewPersonalVehicle(CurrentPlayerName, true);
       };
     }
 
     private void AddMenuRequestASpecificVehicle( UIMenu menu ) {
       var subMenu = _menuPool.AddSubMenu( menu, "Request A Specific Vehicle", "Request a specific personal vehicle nearby." );
-      foreach ( var vehicleDefinition in CurrentVehicleDefinitions ) {
+      foreach ( var vehicleDefinition in PersonalVehicleController.CurrentVehicleDefinitions(CurrentPlayerName) ) {
         var eachItem = new UIMenuItem( vehicleDefinition.VehicleName, vehicleDefinition.Colors.Primary.ToString() );
         subMenu.AddItem( eachItem );
         menu.OnItemSelect += ( sender, item, index ) => {
           if ( item != eachItem ) return;
           UI.Notify( "Requesting: " + item.Text );
-          VehicleDefinition specificVehicleDefinition = CurrentVehicleDefinitions[index];
-          DeployANewPersonalVehicle(isDelivery: true, specificVehicleDefinition: specificVehicleDefinition );
+          VehicleDefinition specificVehicleDefinition = PersonalVehicleController.CurrentVehicleDefinitions( CurrentPlayerName)[index];
+          PersonalVehicleController.DeployANewPersonalVehicle( CurrentPlayerName, isForDelivery: true, specificVehicleDefinition: specificVehicleDefinition );
         };
       }
     }

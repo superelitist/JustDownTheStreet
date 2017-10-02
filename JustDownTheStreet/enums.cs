@@ -1,7 +1,5 @@
-﻿namespace JustDownTheStreet
-{
-  internal enum AmmunitionPrices
-  {
+﻿namespace JustDownTheStreet {
+  public enum AmmunitionPrices {
     Pistol = 10,
     Shotgun = 20,
     AssaultRifle = 30,
@@ -13,5 +11,11 @@
     Sniper = 100,
     SMG = 10,
     Melee = 0
+  }
+
+  public enum PlayerBlipColors {
+    Michael = 3,
+    Franklin = 2,
+    Trevor = 17
   }
 }

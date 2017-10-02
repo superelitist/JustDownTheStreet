@@ -7,10 +7,8 @@
 
 using GTA;
 
-namespace JustDownTheStreet
-{
-  internal class VehicleDefinition
-  {
+namespace JustDownTheStreet {
+  public class VehicleDefinition {
     public string VehicleName { get; set; }
     public string Plate { get; set; }
     public string Character { get; set; }
@@ -80,17 +78,15 @@ namespace JustDownTheStreet
     public bool VehicleExtra13 { get; set; }
     public bool VehicleExtra14 { get; set; }
 
-    public VehicleDefinition( string hash, string plate, string character )
-    {
-      VehicleName = hash;
-      Plate = plate;
-      Character = character;
-      //            Spoilers = -1; FrontBumper = -1; RearBumper = -1; SideSkirt = -1; Exhaust = -1; Frame = -1; Grille = -1; Hood = -1;
-      //            Fender = -1; RightFender = -1; Roof = -1; Engine = -1; Brakes = -1; Transmission = -1; Horns = -1; Suspension = -1;
-      //            Armor = -1; FrontWheel = -1; RearWheel = -1; PlateHolder = -1; VanityPlates = -1; TrimDesign = -1; Ornaments = -1;
-      //            Dashboard = -1; DialDesign = -1; DoorSpeakers = -1; Seats = -1; SteeringWheels = -1; ColumnShifterLevers = -1; Plaques = -1;
-      //            Speakers = -1; Trunk = -1; Hydraulics = -1; EngineBlock = -1; AirFilter = -1; Struts = -1; ArchCover = -1; Aerials = -1;
-      //            Trim = -1; Tank = -1; Windows = -1; Livery = -1; Turbo = false; TireSmoke = false; XenonHeadlights = false; CanTiresBurst = false;
+    public VehicleDefinition( string hash, string plate, string character ) {
+      VehicleName = hash; Plate = plate; Character = character;
+
+                  Spoilers = -1; FrontBumper = -1; RearBumper = -1; SideSkirt = -1; Exhaust = -1; Frame = -1; Grille = -1; Hood = -1;
+                  Fender = -1; RightFender = -1; Roof = -1; Engine = -1; Brakes = -1; Transmission = -1; Horns = -1; Suspension = -1;
+                  Armor = -1; FrontWheel = -1; RearWheel = -1; PlateHolder = -1; VanityPlates = -1; TrimDesign = -1; Ornaments = -1;
+                  Dashboard = -1; DialDesign = -1; DoorSpeakers = -1; Seats = -1; SteeringWheels = -1; ColumnShifterLevers = -1; Plaques = -1;
+                  Speakers = -1; Trunk = -1; Hydraulics = -1; EngineBlock = -1; AirFilter = -1; Struts = -1; ArchCover = -1; Aerials = -1;
+                  Trim = -1; Tank = -1; Windows = -1; Livery = -1; Turbo = false; TireSmoke = false; XenonHeadlights = false; CanTiresBurst = false;
     }
 
     //Other properties, methods, events...

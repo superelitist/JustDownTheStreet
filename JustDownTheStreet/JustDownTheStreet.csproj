@@ -59,12 +59,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EnumerableExtension.cs" />
     <Compile Include="enums.cs" />
+    <Compile Include="JsonController.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="MainMenu.cs" />
+    <Compile Include="PersonalVehicleController.cs" />
     <Compile Include="VehicleDefinition.cs" />
     <Compile Include="Colors.cs" />
-    <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Vector4.cs" />

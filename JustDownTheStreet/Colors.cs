@@ -3,7 +3,7 @@ using System.Drawing;
 
 namespace JustDownTheStreet
 {
-  internal class Colors
+  public class Colors
   {
     public VehicleColor Primary { get; set; }
     public VehicleColor Secondary { get; set; }

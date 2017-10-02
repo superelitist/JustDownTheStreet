@@ -9,7 +9,7 @@ using GTA.Math;
 
 namespace JustDownTheStreet
 {
-  internal struct Vector4
+  public struct Vector4
   {
     public float X { get; set; }
     public float Y { get; set; }
