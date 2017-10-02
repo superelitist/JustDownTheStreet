@@ -35,9 +35,11 @@ namespace JustDownTheStreet {
     private static string _currentPlayerName;
     private static int _millisecondsToDelayQualityOfLife = 333333;
     private static int _minimumAcceptableSpawnDistance = 66;
+    private static int _maximumAcceptableSpawnDistance = 333;
     private static int _minimumMultipleOfPlayerMoneyToPurchase = 11;
     private static Vehicle _personalVehicle;
     private static Blip _personalVehicleBlip;
+    private static Ped _personalDriver;
     private static int _personalVehicleDespawnRange = 333;
     private static int _personalVehicleLockUnlockRange = 11;
     private static int _priceOfBodyArmor = 6666;
@@ -46,8 +48,9 @@ namespace JustDownTheStreet {
     private readonly Stopwatch _lastTimeMichaelWasInControl = new Stopwatch();
     private readonly Stopwatch _lastTimeTrevorWasInControl = new Stopwatch();
     private bool _playerIsInControl;
-    private MainMenu _theScriptMainMenuInstance = new MainMenu();
+    private static bool _personalVehicleIsDelivered;
     private bool _waiting;
+    private MainMenu _theScriptMainMenuInstance = new MainMenu();
 
     public Main()
     {
@@ -70,15 +73,20 @@ namespace JustDownTheStreet {
       KeyUp += KeyUpHandler; // hook up the handlers
       _findASpawnPointRetryTimer.Elapsed += FindASpawnPointRetryTimerHandler; // init the retry timer
     }
-
-    internal static void RequestANewPersonalVehicle( VehicleDefinition specificVehicleDefinition = null )
-    {
+    
+    internal static void DeployANewPersonalVehicle(bool isDelivery, VehicleDefinition specificVehicleDefinition = null) {
+      Vector4 spawnPoint;
       CleanupPersonalVehicleAndBlip( ref _personalVehicle, ref _personalVehicleBlip );
-      GeneratePersonalVehicleAndBlip( ref _personalVehicle, ref _personalVehicleBlip, specificVehicleDefinition );
+      try {
+        spawnPoint = FindASpawnPoint(isDelivery);
+      } catch {
+        return;
+      }
+      GeneratePersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip, specificVehicleDefinition, spawnPoint);
+      if (isDelivery) DeliverPersonalVehicle(ref _personalVehicle, ref _personalDriver);
     }
 
-    internal static void SaveCurrentVehicleToJson( string jsonfolder, string currentCharacterName )
-    {
+    internal static void SaveCurrentVehicleToJson( string jsonfolder, string currentCharacterName ) {
       Vehicle vehicle = Game.Player.Character.CurrentVehicle; // get the vehicle our player is in
       if ( vehicle == null ) return;
       Colors vehicleColors = new Colors( vehicle.PrimaryColor, vehicle.SecondaryColor, vehicle.PearlescentColor ) {
@@ -168,7 +176,87 @@ namespace JustDownTheStreet {
       File.WriteAllText( fullPath, jsonString );
     }
 
-    private static void CleanupPersonalVehicleAndBlip( ref Vehicle vehicle, ref Blip blip )
+    private static string GetHash(MD5 hash, string input) {
+      // Convert the input string to a byte array and compute the hash.
+      byte[] data = hash.ComputeHash(Encoding.UTF8.GetBytes(input));
+      StringBuilder sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
+      // Loop through each byte of the hashed data and format each one as a hexadecimal string.
+      foreach (byte t in data) {
+        sBuilder.Append(t.ToString("x2", CultureInfo.InvariantCulture));
+      }
+      return sBuilder.ToString(); // Return the hexadecimal string.
+    }
+
+    private static bool IsPlayerSwitchingUnderArrestDeadOrLoading() {
+      if (Function.Call<bool>(Hash.IS_PLAYER_SWITCH_IN_PROGRESS)
+          || Function.Call<bool>(Hash.IS_ENTITY_DEAD, Function.Call<Ped>(Hash.PLAYER_PED_ID))
+          || Function.Call<bool>(Hash.IS_PLAYER_BEING_ARRESTED, Game.Player.Character)
+          || Game.IsLoading) {
+        return true;
+      }
+      return false;
+    }
+
+    private static int PlayerDistanceCompare(Vehicle vehicle1, Vehicle vehicle2) {
+      float aDistance = World.GetDistance(Game.Player.Character.Position, vehicle1.Position);
+      float bDistance = World.GetDistance(Game.Player.Character.Position, vehicle2.Position);
+      return aDistance.CompareTo(bDistance);
+    }
+
+    private static Vector4 FindASpawnPoint(bool forDelivery) {
+      if (forDelivery) {
+        //Vector3 properPosition = World.GetNextPositionOnStreet(Game.Player.Character.Position.Around(Rng.Next(_minimumAcceptableSpawnDistance, _maximumAcceptableSpawnDistance)), true);
+        Vector3 randomPosition = Game.Player.Character.Position.Around(Rng.Next(_minimumAcceptableSpawnDistance, _maximumAcceptableSpawnDistance));
+        OutputArgument outArgA = new OutputArgument();
+        OutputArgument outArgB = new OutputArgument();
+        //if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, randomPosition.X, randomPosition.Y, randomPosition.Z, outArgA, outArgB, 1, 1077936128, 0)) {
+        if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, randomPosition.X, randomPosition.Y, randomPosition.Z, outArgA, outArgB, 1, 3, 0)) {
+          Vector3 properPosition = outArgA.GetResult<Vector3>();
+          float heading = outArgB.GetResult<float>();
+          Logger.Log("FindASpawnPoint(): found a spawn point for delivery.");
+          return new Vector4(properPosition, heading);
+        }
+      }
+      Vector3 playerPosition = Game.Player.Character.Position;
+      List<Vehicle> allVehicles = World.GetAllVehicles().ToList();
+      allVehicles.Sort(PlayerDistanceCompare);
+      Logger.Log("FindASpawnPoint(): looking at " + allVehicles.Count + " possible vehicles.");
+      foreach (Vehicle thisVehicle in allVehicles) {
+        Wait(0); // avoid slowing down gameplay
+        if (!(World.GetDistance(thisVehicle.Position, playerPosition) > _minimumAcceptableSpawnDistance
+            & World.GetDistance(thisVehicle.Position, playerPosition) < _maximumAcceptableSpawnDistance
+            & thisVehicle.IsStopped
+            & thisVehicle.Driver.Model == 0x0
+            & thisVehicle.PreviouslyOwnedByPlayer == false
+            & thisVehicle.ClassType != VehicleClass.Boats
+            & thisVehicle.ClassType != VehicleClass.Commercial
+            & thisVehicle.ClassType != VehicleClass.Emergency
+            & thisVehicle.ClassType != VehicleClass.Helicopters
+            & thisVehicle.ClassType != VehicleClass.Industrial
+            & thisVehicle.ClassType != VehicleClass.Military
+            & thisVehicle.ClassType != VehicleClass.Planes
+            & thisVehicle.ClassType != VehicleClass.Trains)) continue; // lazy but should probably do OK for now.
+        Vector3 thisVehiclePosition = thisVehicle.Position;
+        float thisVehicleHeading = thisVehicle.Heading;
+        thisVehicle.Delete();
+        Logger.Log("FindASpawnPoint(): found a spawn point.");
+        return new Vector4(thisVehiclePosition, thisVehicleHeading);
+      }
+      Logger.Log("FindASpawnPoint(): couldn't find a suitable spawn point.");
+      throw new InvalidOperationException("FindASpawnPoint(): couldn't find a suitable spawn point.");
+    }
+
+    private static VehicleDefinition SelectARandomPersonalVehicle(IReadOnlyList<VehicleDefinition> vehicleList) {
+      if (vehicleList.Count == 0) {
+        Logger.Log("SelectARandomPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
+        throw new InvalidOperationException("SelectARandomPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
+      }
+      int randomNumber = Rng.Next(vehicleList.Count);
+      VehicleDefinition selectedVehicleDefinition = vehicleList[randomNumber];
+      return selectedVehicleDefinition;
+    }
+
+    private static void CleanupPersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip)
     {
       Wait( 1333 ); // or the player ped will be standing in the middle of the street.
       Logger.Log( "CleanupPersonalVehicleAndBlip(): removing vehicle and blip." );
@@ -180,13 +268,65 @@ namespace JustDownTheStreet {
         vehicle = null;
       }
     }
+    
+    private static void GeneratePersonalVehicleAndBlip(ref Vehicle vehicle, ref Blip blip, VehicleDefinition specificVehicleDefinition = null, Vector4 spawnPoint = new Vector4()) {
+      VehicleDefinition vehicleDefinition;
+      int colorToUse;
 
-    private static int PlayerDistanceCompare( Vehicle vehicle1, Vehicle vehicle2 ) {
-      float aDistance = World.GetDistance( Game.Player.Character.Position, vehicle1.Position );
-      float bDistance = World.GetDistance( Game.Player.Character.Position, vehicle2.Position );
-      return aDistance.CompareTo( bDistance );
+      try {
+        switch (_currentPlayerName) {
+          case "Michael":
+            vehicleDefinition = SelectARandomPersonalVehicle(PersonalVehiclesMichael);
+            colorToUse = (int)BlipColor.Blue;
+            break;
+          case "Franklin":
+            vehicleDefinition = SelectARandomPersonalVehicle(PersonalVehiclesFranklin);
+            colorToUse = (int)BlipColor.Green;
+            break;
+          case "Trevor":
+            vehicleDefinition = SelectARandomPersonalVehicle(PersonalVehiclesTrevor);
+            colorToUse = 17; // wtf Trevor's color isn't even an enum?
+            break;
+          default:
+            Logger.Log(
+                "GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
+            throw new InvalidOperationException(
+                "GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen.");
+        }
+      } catch (InvalidOperationException) {
+        Logger.Log("GeneratePersonalVehicleAndBlip(): InvalidOperationException");
+        return;
+      }
+
+      if (specificVehicleDefinition != null) vehicleDefinition = specificVehicleDefinition;
+
+      Vector3 vehicle_position = new Vector3(spawnPoint.X, spawnPoint.Y, spawnPoint.Z);
+      Model model = new Model(vehicleDefinition.VehicleName).Hash;
+      model.Request();
+      while (!model.IsLoaded) {
+        Script.Yield();
+      }
+      vehicle = World.CreateVehicle(vehicleDefinition.VehicleName, vehicle_position, spawnPoint.H);
+      if (vehicle == null) {
+        Logger.Log("GeneratePersonalVehicleAndBlip(): World.CreateVehicle() failed to create a vehicle, which should never happen.");
+        return;
+      }
+      vehicle.PlaceOnGround();
+      ConfigurePersonalVehicle(vehicle, vehicleDefinition);
+      vehicle.LockStatus = VehicleLockStatus.Locked;
+      vehicle.PreviouslyOwnedByPlayer = true;
+      Logger.Log("GeneratePersonalVehicleAndBlip(): placed a " + vehicle.PrimaryColor + " "
+        + (VehicleHash)vehicle.Model.Hash + " at ("
+        + Math.Round(vehicle_position.X, 3) + ", "
+        + Math.Round(vehicle_position.Y, 3) + ", "
+        + Math.Round(vehicle_position.Z, 3) + ")");
+      blip = vehicle.AddBlip();
+      blip.Sprite = BlipSprite.PersonalVehicleCar;
+      blip.Name = vehicleDefinition.VehicleName;
+      blip.Scale = 0.8888f;
+      Function.Call(Hash.SET_BLIP_COLOUR, blip, colorToUse);
     }
-
+    
     private static void ConfigurePersonalVehicle( Vehicle vehicle, VehicleDefinition vehicleDefinition ) {
       vehicle.NumberPlate = vehicleDefinition.Plate;
       // for now I'm skipping the custom colors, I'm not actually sure if I can even set those...
@@ -264,37 +404,47 @@ namespace JustDownTheStreet {
       vehicle.ToggleExtra( 14, vehicleDefinition.VehicleExtra14 );
     }
 
-    private static Vector4 FindASpawnPoint() {
-      Vector3 playerPosition = Game.Player.Character.Position;
-      List<Vehicle> allVehicles = World.GetAllVehicles().ToList();
-      allVehicles.Sort( PlayerDistanceCompare );
-      Logger.Log( "FindASpawnPoint(): looking at " + allVehicles.Count + " possible vehicles." );
-      foreach ( Vehicle thisVehicle in allVehicles ) {
-        Wait( 0 ); // avoid slowing down gameplay
-        if ( World.GetDistance( thisVehicle.Position, playerPosition ) > 3 
-             & World.GetDistance( thisVehicle.Position, playerPosition ) < _minimumAcceptableSpawnDistance 
-             & thisVehicle.IsStopped 
-             & thisVehicle.Driver.Model == 0x0
-             & thisVehicle.PreviouslyOwnedByPlayer == false
-             & thisVehicle.ClassType != VehicleClass.Boats
-             & thisVehicle.ClassType != VehicleClass.Commercial
-             & thisVehicle.ClassType != VehicleClass.Emergency
-             & thisVehicle.ClassType != VehicleClass.Helicopters
-             & thisVehicle.ClassType != VehicleClass.Industrial
-             & thisVehicle.ClassType != VehicleClass.Military
-             & thisVehicle.ClassType != VehicleClass.Planes
-             & thisVehicle.ClassType != VehicleClass.Trains) { // lazy but should probably do OK for now.
-          Vector3 thisVehiclePosition = thisVehicle.Position;
-          float thisVehicleHeading = thisVehicle.Heading;
-          thisVehicle.Delete();
-          Logger.Log( "FindASpawnPoint(): found a spawn point." );
-          return new Vector4( thisVehiclePosition, thisVehicleHeading );
-        }
-      }
-      Logger.Log( "FindASpawnPoint(): couldn't find a suitable spawn point." );
-      throw new InvalidOperationException( "FindASpawnPoint(): couldn't find a suitable spawn point." );
+    private static void DeliverPersonalVehicle(ref Vehicle vehicle, ref Ped driver) {
+      Logger.Log("DeliverPersonalVehicle()");
+      //int myDrivingStyle = 262144 + 32 + 16 + 8 + 4;
+      int myDrivingStyle = 4 + 8 + 16 + 32 + 256 + 512 + 262144;
+      driver = _personalVehicle.CreateRandomPedOnSeat(VehicleSeat.Driver);
+      driver.Alpha = 0;
+      Vector3 targetPos = World.GetNextPositionOnStreet(Game.Player.Character.Position);
+      Function.Call(Hash.SET_DRIVER_ABILITY, driver, 1.0f);
+      TaskSequence deliverySequence = new TaskSequence();
+      Function.Call(Hash.TASK_VEHICLE_MISSION_PED_TARGET, 0, vehicle, Game.Player.Character, 4, 60.0f, myDrivingStyle, 60.0f, 0.0f, true);
+      Function.Call(Hash.TASK_VEHICLE_MISSION_PED_TARGET, 0, vehicle, Game.Player.Character, 4, 30.0f, myDrivingStyle, 30.0f, 0.0f, true);
+      Function.Call(Hash.TASK_VEHICLE_MISSION_PED_TARGET, 0, vehicle, Game.Player.Character, 4, 15.0f, myDrivingStyle, 15.0f, 0.0f, true);
+      Function.Call(Hash.TASK_VEHICLE_MISSION_PED_TARGET, 0, vehicle, Game.Player.Character, 4, 5.0f, myDrivingStyle, 5.0f, 0.0f, true);
+      deliverySequence.Close();
+      driver.Task.PerformSequence(deliverySequence);
+      deliverySequence.Dispose();
+      _personalVehicleIsDelivered = false;
     }
 
+    private static void ParkPersonalVehicleNearby(Vehicle vehicle, ref Ped driver) {
+      Logger.Log("ParkPersonalVehicleNearby()");
+      Vector3 playerPos = Game.Player.Character.Position;
+      Vector3 streetNode = World.GetNextPositionOnStreet(Game.Player.Character.Position);
+      Vector3 sidewalkNode = World.GetNextPositionOnSidewalk(Game.Player.Character.Position);
+      OutputArgument outArgA = new OutputArgument();
+      OutputArgument outArgB = new OutputArgument();
+      if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, sidewalkNode.X, sidewalkNode.Y, sidewalkNode.Z, outArgA, outArgB, 1, 3, 0)) {
+        Vector3 pos = outArgA.GetResult<Vector3>();
+        float heading = outArgB.GetResult<float>();
+        Function.Call(Hash.TASK_VEHICLE_PARK, 0, vehicle, sidewalkNode.X, sidewalkNode.Y, sidewalkNode.Z, heading, 0, 30.0f, true);
+        while (vehicle.Speed > 1.0f) {
+          Yield();
+        }
+        driver.Delete();
+        vehicle.PreviouslyOwnedByPlayer = true;
+        Logger.Log("ParkPersonalVehicleNearby(): Finished.");
+      } else {
+        Logger.Log("GET_CLOSEST_VEHICLE_NODE_WITH_HEADING failed, can't park!");
+      }
+    }
+ 
     private static void GenerateAllPersonalVehicles() {
       float offset = (float)2.5;
       var position = Game.Player.Character.GetOffsetInWorldCoords( new Vector3( 0, offset, 0 ) ); // 5 meters in front of the player
@@ -306,66 +456,6 @@ namespace JustDownTheStreet {
         offset = offset + (float)3.5;
         position = Game.Player.Character.GetOffsetInWorldCoords( new Vector3( 0, offset, 0 ) );
       }
-    }
-
-    private static void GeneratePersonalVehicleAndBlip( ref Vehicle vehicle, ref Blip blip, 
-                                                        VehicleDefinition specificVehicleDefinition = null ) {
-      VehicleDefinition vehicleDefinition;
-      Vector4 aSpawnPoint;
-      int colorToUse;
-      try {
-        aSpawnPoint = FindASpawnPoint();
-      } catch ( InvalidOperationException ) {
-        return;
-      }
-
-      try {
-        switch ( _currentPlayerName ) {
-          case "Michael":
-            vehicleDefinition = SelectARandomPersonalVehicle( PersonalVehiclesMichael );
-            colorToUse = (int)BlipColor.Blue;
-            break;
-          case "Franklin":
-            vehicleDefinition = SelectARandomPersonalVehicle( PersonalVehiclesFranklin );
-            colorToUse = (int)BlipColor.Green;
-            break;
-          case "Trevor":
-            vehicleDefinition = SelectARandomPersonalVehicle( PersonalVehiclesTrevor );
-            colorToUse = 17; // wtf Trevor's color isn't even an enum?
-            break;
-          default:
-            Logger.Log(
-                "GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen." );
-            throw new InvalidOperationException(
-                "GeneratePersonalVehicleAndBlip(): couldn't match on character name. This should never happen." );
-        }
-      } catch ( InvalidOperationException ) {
-        Logger.Log( "GeneratePersonalVehicleAndBlip(): InvalidOperationException" );
-        return;
-      }
-
-      if ( specificVehicleDefinition != null ) vehicleDefinition = specificVehicleDefinition;
-
-      Vector3 vehicle_position = new Vector3( aSpawnPoint.X, aSpawnPoint.Y, aSpawnPoint.Z );
-      vehicle = World.CreateVehicle( vehicleDefinition.VehicleName, vehicle_position, aSpawnPoint.H );
-      if ( vehicle == null ) {
-        Logger.Log("GeneratePersonalVehicleAndBlip(): World.CreateVehicle() failed to create a vehicle, which should never happen." );
-        return;
-      }
-      vehicle.PlaceOnGround();
-      ConfigurePersonalVehicle( vehicle, vehicleDefinition );
-      vehicle.LockStatus = VehicleLockStatus.Locked;
-      vehicle.PreviouslyOwnedByPlayer = true;
-      Logger.Log( "GeneratePersonalVehicleAndBlip(): placed a " + vehicle.PrimaryColor + " " 
-        + (VehicleHash)vehicle.Model.Hash + " at (" 
-        + Math.Round( vehicle_position.X, 3 ) + ", " 
-        + Math.Round(vehicle_position.Y, 3 ) + ", " 
-        + Math.Round(vehicle_position.Z, 3 ) + ")" );
-      blip = vehicle.AddBlip();
-      blip.Sprite = BlipSprite.PersonalVehicleCar;
-      blip.Name = vehicleDefinition.VehicleName;
-      blip.Scale = 0.8888f;
-      Function.Call( Hash.SET_BLIP_COLOUR, blip, colorToUse );
     }
 
     private static List<VehicleDefinition> GetAllPersonalVehiclesFromJson( string jsonfolder, string name ) {
@@ -384,28 +474,6 @@ namespace JustDownTheStreet {
       }
       Logger.Log( "GetAllPersonalVehiclesFromJson(" + name + "): found " + list.Count + " vehicles" );
       return list;
-    }
-
-    private static string GetHash( MD5 hash, string input ) {
-      // Convert the input string to a byte array and compute the hash.
-      byte[]data = hash.ComputeHash(Encoding.UTF8.GetBytes(input));
-      StringBuilder sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
-      // Loop through each byte of the hashed data and format each one as a hexadecimal string.
-      foreach ( byte t in data ) {
-        sBuilder.Append(t.ToString("x2", CultureInfo.InvariantCulture));
-      }
-      return sBuilder.ToString(); // Return the hexadecimal string.
-    }
-
-    // not always reliable, but... enough?
-    private static bool IsPlayerSwitchingUnderArrestDeadOrLoading() {
-      if (Function.Call<bool>(Hash.IS_PLAYER_SWITCH_IN_PROGRESS) 
-          || Function.Call<bool>(Hash.IS_ENTITY_DEAD, Function.Call<Ped>(Hash.PLAYER_PED_ID)) 
-          || Function.Call<bool>(Hash.IS_PLAYER_BEING_ARRESTED, Game.Player.Character) 
-          || Game.IsLoading) {
-        return true;
-      }
-      return false;
     }
 
     private static void ProvideQualityOfLifeForCharacter() {
@@ -436,22 +504,11 @@ namespace JustDownTheStreet {
       }
     }
 
-    private static VehicleDefinition SelectARandomPersonalVehicle( IReadOnlyList<VehicleDefinition> vehicleList ) {
-      if (vehicleList.Count == 0) {
-        Logger.Log("SelectARandomPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
-        throw new InvalidOperationException("SelectARandomPersonalVehicle(): list is empty! I guess we can't spawn a vehicle...");
-      }
-      int randomNumber = Rng.Next(vehicleList.Count);
-      VehicleDefinition selectedVehicleDefinition = vehicleList[randomNumber];
-      return selectedVehicleDefinition;
-    }
-
     private void FindASpawnPointRetryTimerHandler( object source, ElapsedEventArgs e ) {
       _waiting = false;
       _findASpawnPointRetryTimer.Stop();
     }
 
-    // not nearly as useful as KeyUpHandler
     private void KeyDownHandler( object sender, KeyEventArgs e ) {
     }
 
@@ -461,18 +518,11 @@ namespace JustDownTheStreet {
         //if (Game.IsKeyPressed(Keys.OemPipe)) ProvideQualityOfLifeForCharacter();
       }
     }
-
-    // roughly every 16ms (60 times per second)
-    private void OnTick( object sender, EventArgs e ) {
+        
+    private void OnTick( object sender, EventArgs e ) { // roughly every 16ms (60 times per second)
+      
       //Logger.LogFPS(); // this file gets big fast...
       _theScriptMainMenuInstance.OnTickHandler();
-      if (_personalVehicle != null) {
-        _personalVehicle.LockStatus = World.GetDistance(_personalVehicle.Position
-          , Game.Player.Character.Position) < _personalVehicleLockUnlockRange ? VehicleLockStatus.Unlocked : VehicleLockStatus.Locked;
-        if (World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) > _personalVehicleDespawnRange) {
-          CleanupPersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
-        }
-      }
 
       // is the player switching but wasn't already?
       if ( _playerIsInControl && IsPlayerSwitchingUnderArrestDeadOrLoading()) {
@@ -526,10 +576,9 @@ namespace JustDownTheStreet {
         }
       }
 
-      if (_playerIsInControl && _personalVehicle == null && !_waiting)
-      {
+      if (_playerIsInControl && _personalVehicle == null && !_waiting) {
         Logger.Log("OnTick(): " + _currentPlayerName + " does not have a nearby personal vehicle.");
-        RequestANewPersonalVehicle();
+        DeployANewPersonalVehicle(isDelivery: false);
         if (_personalVehicle == null)
         {
           Logger.Log("OnTick(): GeneratePersonalVehicleAndBlip() seems to have failed, waiting a bit then trying again.");
@@ -537,7 +586,28 @@ namespace JustDownTheStreet {
           _waiting = true;
         }
       }
-      
+
+      if (_personalVehicle != null) {
+        _personalVehicle.LockStatus = World.GetDistance(_personalVehicle.Position
+          , Game.Player.Character.Position) < _personalVehicleLockUnlockRange ? VehicleLockStatus.Unlocked : VehicleLockStatus.Locked;
+        if (World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) > _personalVehicleDespawnRange) {
+          CleanupPersonalVehicleAndBlip(ref _personalVehicle, ref _personalVehicleBlip);
+          _personalVehicleIsDelivered = false;
+        }
+      }
+
+      if (_personalVehicle != null && !_personalVehicleIsDelivered 
+        && World.GetDistance(_personalVehicle.Position, Game.Player.Character.Position) <= 7.0f
+        && _personalVehicle.Speed < 7.0f) {
+        _personalDriver.Delete();
+        _personalVehicle.PreviouslyOwnedByPlayer = true;
+        _personalVehicleIsDelivered = true;
+        //Game.Player.Character.Task.LookAt(_personalVehicle, 3333);
+        //Function.Call(Hash.SET_PED_PRIMARY_LOOKAT, Game.Player.Character, _personalDriver);
+        //GameplayCamera.RelativeHeading = 90.0f;
+        //GameplayCamera.RelativePitch = 90.0f;
+      }
+
       XBoxControllerUpdate();
     }
 

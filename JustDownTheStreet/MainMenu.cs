@@ -33,7 +33,7 @@ namespace JustDownTheStreet {
         //string output = ketchup ? "You have ordered ~b~{0}~w~ ~r~with~w~ ketchup." : "You have ordered ~b~{0}~w~ ~r~without~w~ ketchup.";
         //UI.ShowSubtitle(String.Format(output, dish));
         UI.Notify( "Requesting a vehicle" );
-        RequestANewPersonalVehicle();
+        DeployANewPersonalVehicle(isDelivery: true);
       };
     }
 
@@ -46,7 +46,7 @@ namespace JustDownTheStreet {
           if ( item != eachItem ) return;
           UI.Notify( "Requesting: " + item.Text );
           VehicleDefinition specificVehicleDefinition = CurrentVehicleDefinitions[index];
-          RequestANewPersonalVehicle( specificVehicleDefinition );
+          DeployANewPersonalVehicle(isDelivery: true, specificVehicleDefinition: specificVehicleDefinition );
         };
       }
     }
