@@ -10,38 +10,31 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace JustDownTheStreet
-{
-  public static class JsonController
-  {
+namespace JustDownTheStreet {
+  public static class JsonController {
     public static readonly string JsonFolder = AppDomain.CurrentDomain.BaseDirectory + "/jdts/";
     public static readonly MD5 Md5Hash = new MD5Cng();
 
-    public static string GetHash( MD5 hash, string input )
-    {
+    public static string GetHash( MD5 hash, string input ) {
       // Convert the input string to a byte array and compute the hash.
       byte[] data = hash.ComputeHash( Encoding.UTF8.GetBytes( input ) );
       StringBuilder sBuilder = new StringBuilder(); // Create a new Stringbuilder to collect the bytes and create a string.
       // Loop through each byte of the hashed data and format each one as a hexadecimal string.
-      foreach ( byte t in data )
-      {
+      foreach ( byte t in data ) {
         sBuilder.Append( t.ToString( "x2", CultureInfo.InvariantCulture ) );
       }
       return sBuilder.ToString(); // Return the hexadecimal string.
     }
 
-    public static List<VehicleDefinition> GetAllPersonalVehiclesFromJson( string name )
-    {
+    public static List<VehicleDefinition> GetAllPersonalVehiclesFromJson( string name ) {
       List<VehicleDefinition> list = new List<VehicleDefinition>();
       Directory.CreateDirectory( JsonFolder );
       string[] jsonFiles = Directory.GetFiles( JsonFolder, "*.json" );
-      foreach ( string t in jsonFiles )
-      {
+      foreach ( string t in jsonFiles ) {
         //Wait(0); // avoid slowing down gameplay
         VehicleDefinition thisVehicleDefinition = JsonConvert.DeserializeObject<VehicleDefinition>( File.ReadAllText( t ) );
         if ( thisVehicleDefinition.Character != name ) continue;
-        if ( !new Model( thisVehicleDefinition.VehicleName ).IsVehicle )
-        {
+        if ( !new Model( thisVehicleDefinition.VehicleName ).IsVehicle ) {
           Logger.Log( "GetAllPersonalVehiclesFromJson(): " + thisVehicleDefinition.VehicleName
                       + " does not appear to be a valid vehicle, skipping." );
           continue;
@@ -52,8 +45,7 @@ namespace JustDownTheStreet
       return list;
     }
 
-    public static void SaveCurrentVehicleToJson( string currentCharacterName )
-    {
+    public static void SaveCurrentVehicleToJson( string currentCharacterName ) {
       Vehicle vehicle = Game.Player.Character.CurrentVehicle; // get the vehicle our player is in
       if ( vehicle == null ) return;
       Colors vehicleColors = new Colors( vehicle.PrimaryColor, vehicle.SecondaryColor, vehicle.PearlescentColor ) {
@@ -63,8 +55,7 @@ namespace JustDownTheStreet
         Trim = vehicle.TrimColor,
         Dashboard = vehicle.DashboardColor
       };
-      VehicleDefinition vehicleDefinition = new VehicleDefinition( ( (VehicleHash)vehicle.Model.Hash ).ToString()
-                                                                   , vehicle.NumberPlate, currentCharacterName ) {
+      VehicleDefinition vehicleDefinition = new VehicleDefinition( ( (VehicleHash)vehicle.Model.Hash ).ToString(), vehicle.NumberPlate, currentCharacterName ) {
         Colors = vehicleColors,
         NumberPlateType = vehicle.NumberPlateType,
         WheelType = vehicle.WheelType,
@@ -134,14 +125,12 @@ namespace JustDownTheStreet
       string jsonString = JsonConvert.SerializeObject( vehicleDefinition, Formatting.Indented );
       string vehiclehashcode = GetHash( Md5Hash, jsonString );
       string fullPath = JsonFolder + currentCharacterName + "_" + vehicleDefinition.VehicleName + "_" + vehiclehashcode + ".json";
-      if ( File.Exists( fullPath ) )
-      {
+      if ( File.Exists( fullPath ) ) {
         Logger.Log( fullPath + " -> vehicle exists, skipping save." );
         return;
       }
       Logger.Log( fullPath + " -> saving vehicle..." );
       File.WriteAllText( fullPath, jsonString );
     }
-
   }
 }

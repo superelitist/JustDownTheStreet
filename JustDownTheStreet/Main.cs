@@ -27,7 +27,7 @@ using Control = GTA.Control;
 namespace JustDownTheStreet {
   public class Main : Script {
 
-    
+
     //public static readonly Random Rng = new Random();
     public static string CurrentPlayerName;
     private static int _millisecondsToDelayQualityOfLife = 333333;
@@ -42,11 +42,11 @@ namespace JustDownTheStreet {
     //public PersonalVehicleController _personalVehicleController = new PersonalVehicleController();
 
     public Main() {
-      Logger.Log("----------------------------------------------------------------");
-      Logger.Log("Main(): Script initializing");
-      
+      Logger.Log( "----------------------------------------------------------------" );
+      Logger.Log( "Main(): Script initializing" );
+
       // check if player has control, probably indicating that the game has finished loading
-      while ( !Game.Player.CanControlCharacter) {
+      while ( !Game.Player.CanControlCharacter ) {
         Yield();
       }
       _lastTimeMichaelWasInControl.Start();
@@ -55,6 +55,15 @@ namespace JustDownTheStreet {
       Tick += OnTick;
       KeyDown += KeyDownHandler;
       KeyUp += KeyUpHandler; // hook up the handlers
+    }
+
+    public static double GetAngleBetween2DCoords( double ax, double ay, double bx, double by) {
+      //double result = hypot( bx - ax, by - ay );
+      //double result = Math.Sqrt( Math.Pow( ax - bx, 2 ) + Math.Pow( ay - by, 2 ) );
+      double result = Math.Atan2(by - ay, bx - ax);
+      //double result = Math.Atan2(Math.Abs(by - ay), Math.Abs(bx - ax));
+      //return Math.Abs(result.FromRadians());
+      return result.FromRadians();
     }
 
     public static bool IsPlayerSwitchingUnderArrestDeadOrLoading() {
@@ -95,6 +104,40 @@ namespace JustDownTheStreet {
       }
     }
 
+    public static void MakePlayerLookAtTarget(Entity target, uint duration) {
+      Logger.Log("MakePlayerLookAtTarget()");
+      int tickCountAtFunctionBegin = Environment.TickCount;
+      //Camera tempCamera = new Camera(1000000);
+      //tempCamera.IsActive = true;
+      //Logger.Log("tempCamera.Handle: " + tempCamera.Handle);
+      //World.RenderingCamera = tempCamera;
+      //Logger.Log("World.RenderingCamera.Handle: " + World.RenderingCamera.Handle);
+      //World.RenderingCamera.Shake(CameraShake.LargeExplosion, 10.0f);
+      //World.RenderingCamera.FarClip = 1;
+      //tempCamera.IsActive = true;
+      //tempCamera.AttachTo(Game.Player.Character, Game.Player.Character.GetBoneIndex(Bone.SKEL_Head), new Vector3(0, 0, 0));
+      //tempCamera.PointAt(target);
+      //int camHandle = Function.Call<int>(Hash.CREATE_CAMERA_WITH_PARAMS, "DEFAULT_SCRIPTED_CAMERA", GameplayCamera.Position.X, GameplayCamera.Position.X, GameplayCamera.Position.X, 0.0, 0.0, 0.0, 40.0, 1, 2);
+      //Function.Call(Hash.POINT_CAM_AT_ENTITY, camHandle, target, 0.0f, 0.0f, 0.0f, true);
+      //Function.Call(Hash.SET_CAM_ACTIVE, camHandle, true);
+      //Function.Call(Hash.RENDER_SCRIPT_CAMS, true, 1, 1800, 1, 0);
+      //Vector3 originLocation = GameplayCamera.Position;
+      while (Environment.TickCount - tickCountAtFunctionBegin < duration) {
+        //Vector3 originLocation = GameplayCamera.Position;
+        //Vector3 targetLocation = target.Position;
+        //double heading = GetAngleBetween2DCoords(originLocation.X, originLocation.Y, targetLocation.X, targetLocation.Y);
+        //double pitch = GetAngleBetween2DCoords(originLocation.Y, originLocation.Z, targetLocation.Y, targetLocation.Z);
+        //GameplayCamera.RelativeHeading = (float)heading;
+        //GameplayCamera.RelativePitch = (float)pitch; // this doesn't even fucking do jack-all
+        Yield();
+        
+      }
+      //World.RenderingCamera = null;
+      //tempCamera.IsActive = false;
+      //tempCamera.Destroy();
+      Logger.Log("MakePlayerLookAtTarget(): finished.");
+    }
+
     public void KeyDownHandler( object sender, KeyEventArgs e ) {
     }
 
@@ -102,6 +145,7 @@ namespace JustDownTheStreet {
       if ( e.KeyCode == Keys.OemCloseBrackets ) {
         //if (Game.IsKeyPressed(Keys.OemOpenBrackets)) GenerateAllPersonalVehicles();
         //if (Game.IsKeyPressed(Keys.OemPipe)) ProvideQualityOfLifeForCharacter();
+        MakePlayerLookAtTarget(PersonalVehicleController._personalVehicle, 3333);
       }
     }
         
